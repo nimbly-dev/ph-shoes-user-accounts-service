@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=dynamodb
+      - DEBUG=1
+      - AWS_DEFAULT_REGION=ap-southeast-1
+    healthcheck:
+      test: ["CMD", "bash", "-c", "awslocal --version || pip install -q awscli-local && awslocal dynamodb list-tables >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+  account-service:
+    build:
+      context: .
+      dockerfile: DockerfileDev
+    container_name: ph-shoes-account-service
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      - AWS_ENDPOINT=http://localstack:4566
+      - AWS_REGION=ap-southeast-1
+      # Local creds (LocalStack accepts any values)
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - ENV_TAG=dev
+      - JAVA_TOOL_OPTIONS=
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app
+      - maven_cache:/root/.m2
+
+volumes:
+  localstack_data:
+  maven_cache:
