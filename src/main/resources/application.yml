@@ -1,0 +1,16 @@
+spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      adjust-dates-to-context-time-zone: false
+
+
+aws:
+  region: ap-southeast-1
+  endpoint: ${AWS_ENDPOINT:}
+
+app:
+  projectTag: PH-Shoes
+  envTag: ${ENV_TAG:dev}
+  serviceTag: ph-shoes-account-service

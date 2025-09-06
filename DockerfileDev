@@ -1,0 +1,13 @@
+FROM maven:3-amazoncorretto-21 AS dev
+WORKDIR /app
+
+# Copy & install your snowflake-hibernate JAR in this stage...
+COPY pom.xml .
+
+# Source
+COPY src ./src
+
+EXPOSE 8080
+# ENTRYPOINT→CMD for dev; this is correct if you want Maven to launch Spring Boot
+CMD ["mvn","spring-boot:run","-Dspring-boot.run.profiles=dev","-Dspring-boot.run.fork=false","-Dspring-boot.run.jvmArguments=${JAVA_TOOL_OPTIONS}"]
+

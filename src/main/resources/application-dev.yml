@@ -1,0 +1,4 @@
+# src/main/resources/application-dev.yml
+spring:
+  jpa:
+    show-sql: true
