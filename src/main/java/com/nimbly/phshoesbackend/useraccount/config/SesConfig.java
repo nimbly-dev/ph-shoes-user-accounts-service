@@ -6,16 +6,18 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.sesv2.SesV2Client;
 
 import java.net.URI;
 import java.time.Duration;
 
+import static software.amazon.awssdk.services.sesv2.SesV2Client.*;
+
 @Configuration
-public class DynamoConfig {
+public class SesConfig {
 
     @Bean
-    DynamoDbClient dynamoDbClient(AppAwsProps props) {
+    SesV2Client sesV2Client(AppAwsProps props) {
         var http = ApacheHttpClient.builder()
                 .maxConnections(50)
                 .connectionTimeout(Duration.ofSeconds(2))
@@ -27,14 +29,15 @@ public class DynamoConfig {
                 .apiCallTimeout(Duration.ofSeconds(10))
                 .build();
 
-        var b = DynamoDbClient.builder()
+        var b = SesV2Client.builder()
                 .httpClient(http)
                 .overrideConfiguration(override)
                 .region(Region.of(props.getRegion()))
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
+
         if (props.getEndpoint() != null && !props.getEndpoint().isBlank()) {
-            b = b.endpointOverride(URI.create(props.getEndpoint())); // dev/LocalStack
+            b = b.endpointOverride(URI.create(props.getEndpoint()));
         }
         return b.build();
     }

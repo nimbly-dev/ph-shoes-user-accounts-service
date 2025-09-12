@@ -5,19 +5,29 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 @Slf4j
-@Configuration                   // ← add this
-@RequiredArgsConstructor         // ← use constructor injection
+@Configuration
+@RequiredArgsConstructor
+@ConditionalOnProperty(
+        name = "schema.auto-create", havingValue = "true"
+)
 public class SchemaInitRunner {
 
     @Autowired
-    private DynamoSchemaService schemaService;
+    private final DynamoSchemaService schemaService;
+    private final Environment env;
 
     @Bean
     ApplicationRunner runSchemaInit() {
+        if (env.acceptsProfiles("dev")) {
+            schemaService.ensureVerificationTable();
+        }
+
         return args -> {
             log.info("SchemaInitRunner starting...");
             schemaService.ensureBaseSchema();
