@@ -1,9 +1,11 @@
 # src/main/resources/application-prod.yml
+
 spring:
   application:
-    name: ph-shoes-etl
-
-
+    name: ph-shoes-user-account-service
+  mvc:
+    problemdetails:
+      enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -18,7 +20,25 @@ management:
 
 server:
   port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
 
 logging:
   level:
     root: INFO
+
+# Prod: use SES (no AWS endpoint override)
+notify:
+  provider: ses
+  email:
+    from: "PH Shoes <no-reply@yourdomain.com>"
+    subjectPrefix: "[PH-Shoes]"
+
+aws:
+  region: ap-southeast-1
+  endpoint:            # leave blank in prod
+
+verification:
+  ttlSeconds: 900
+  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:https://your-frontend.example/verify}

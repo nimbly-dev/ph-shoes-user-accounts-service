@@ -5,41 +5,54 @@ services:
     image: localstack/localstack:latest
     container_name: localstack
     ports:
-      - "4566:4566"
+      - "4566:4566"                       # AWS edge
     environment:
       - SERVICES=dynamodb
       - DEBUG=1
       - AWS_DEFAULT_REGION=ap-southeast-1
-    healthcheck:
-      test: ["CMD", "bash", "-c", "awslocal --version || pip install -q awscli-local && awslocal dynamodb list-tables >/dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
     volumes:
       - localstack_data:/var/lib/localstack
 
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    container_name: dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: http://localstack:4566
+      AWS_REGION: ap-southeast-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    depends_on:
+      - localstack
+
+  # Your Spring Boot app (now has creds + endpoint + dev profile)
   account-service:
     build:
       context: .
       dockerfile: DockerfileDev
     container_name: ph-shoes-account-service
-    depends_on:
-      localstack:
-        condition: service_healthy
-    environment:
-      - AWS_ENDPOINT=http://localstack:4566
-      - AWS_REGION=ap-southeast-1
-      # Local creds (LocalStack accepts any values)
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-      - ENV_TAG=dev
-      - JAVA_TOOL_OPTIONS=
     ports:
       - "8080:8080"
-    volumes:
-      - ./:/app
-      - maven_cache:/root/.m2
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # AWS SDK v2 picks these up for LocalStack (any non-empty values work)
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: ap-southeast-1
+      # Your AppAwsProps likely reads this (and we also default it in application-dev.yml)
+      AWS_ENDPOINT: http://localstack:4566
+    depends_on:
+      - localstack
+      - mailhog
+
+  # Dev SMTP server with web UI
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI at http://localhost:8025
 
 volumes:
   localstack_data:
-  maven_cache:
