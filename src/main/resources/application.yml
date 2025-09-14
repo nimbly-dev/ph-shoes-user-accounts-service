@@ -9,7 +9,9 @@ spring:
   mvc:
     problemdetails:
       enabled: false
-
+  devtools:
+    restart:
+      enabled: false
 aws:
   region: ap-southeast-1
   endpoint: ${AWS_ENDPOINT:}

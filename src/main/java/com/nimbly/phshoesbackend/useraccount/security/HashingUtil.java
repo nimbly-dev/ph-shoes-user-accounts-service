@@ -1,4 +1,4 @@
-package com.nimbly.phshoesbackend.useraccount.util;
+package com.nimbly.phshoesbackend.useraccount.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

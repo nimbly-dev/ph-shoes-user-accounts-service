@@ -11,7 +11,7 @@ import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
-import com.nimbly.phshoesbackend.useraccount.util.HashingUtil;
+import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -41,8 +41,6 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final NotificationService notifier;
     private final AppVerificationProps vprops;
-
-    // -------------------- Public API --------------------
 
     @Override
     public AccountResponse register(AccountCreateRequest req) {
@@ -95,11 +93,10 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         final String userId = findUserIdByEmailHash(emailHash);
 
         if (userId == null) {
-            // Avoid user enumeration
             log.info("Resend requested for non-existing emailHash={}", emailHash.substring(0, Math.min(8, emailHash.length())));
             return;
         }
-        // If already verified, do nothing (idempotent UX)
+
         if (Boolean.TRUE.equals(getAccountVerified(userId))) {
             log.info("Resend requested but account already verified userId={}", userId);
             return;
