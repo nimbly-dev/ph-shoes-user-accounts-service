@@ -1,6 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -14,6 +15,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 
 @Slf4j
 @RestController
@@ -41,7 +44,16 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletRequest request) {
         String authz = request.getHeader(HttpHeaders.AUTHORIZATION);
         authService.logout(authz);
-        return ResponseEntity.noContent().build();
+        ResponseCookie clear = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true).secure(false)   // set secure=true in prod (HTTPS)
+                .sameSite("Lax").path("/api/v1/auth")
+                .maxAge(Duration.ZERO)
+                .build();
+
+        log.info("auth.logout done");
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, clear.toString())
+                .build();
     }
 
     private static String clientIp(HttpServletRequest req) {
