@@ -104,7 +104,11 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String authorizationHeader) {
-        // no-op for stateless JWT; hook for token revocation list if added later
+        String token = null;
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            token = authorizationHeader.substring(7);
+        }
+        log.info("auth.logout tokenPresent={}", token != null);
     }
 
     private static String normalizeEmail(String email) {

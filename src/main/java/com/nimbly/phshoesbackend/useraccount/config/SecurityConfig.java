@@ -9,7 +9,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.cors.CorsConfiguration;
@@ -33,6 +32,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/user-accounts/register").permitAll()
                         .requestMatchers(HttpMethod.GET,  "/api/v1/user-accounts/verify/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()   // <-- add this
+                        // .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll() // if you add refresh later
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -42,7 +43,7 @@ public class SecurityConfig {
                     res.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"errors\":{\"auth\":[\"Missing or invalid token\"]}}");
                 }));
 
-        // If you have a JWT filter bean, add it here:
+        // If you add a JWT filter later, ensure it skips the public endpoints (login, logout, etc.)
         // http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -56,7 +57,7 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         var cors = new CorsConfiguration();
-        cors.setAllowedOrigins(List.of("*"));          // tighten in prod
+        cors.setAllowedOrigins(List.of("*"));
         cors.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         cors.setAllowedHeaders(List.of("*"));
         cors.setExposedHeaders(List.of("Authorization","Content-Type"));
