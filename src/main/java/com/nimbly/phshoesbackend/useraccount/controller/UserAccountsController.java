@@ -38,13 +38,11 @@ public class UserAccountsController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    // NEW: verify by token (link click)
     @GetMapping("/verify")
     public ResponseEntity<AccountResponse> verify(@RequestParam("token") String token) {
         return ResponseEntity.ok(accountService.verifyByToken(token));
     }
 
-    // NEW: resend verification (always 202; no email enumeration)
     @PostMapping("/verification/resend")
     public ResponseEntity<Void> resend(@RequestBody ResendRequest req) {
         accountService.resendVerification(req.email());

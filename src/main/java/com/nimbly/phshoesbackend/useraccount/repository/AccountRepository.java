@@ -1,7 +1,9 @@
 package com.nimbly.phshoesbackend.useraccount.repository;
 
 import com.nimbly.phshoesbackend.useraccount.model.Account;
+import com.nimbly.phshoesbackend.useraccount.model.dto.VerificationData;
 
+import java.time.Instant;
 import java.util.Optional;
 
 public interface AccountRepository {
@@ -13,4 +15,8 @@ public interface AccountRepository {
     void recordSuccessfulLogin(String userId, String ip, String userAgent);
 
     void deleteById(String userId);
+
+    String createVerification(String userId, String emailPlain, int ttlSeconds);
+    Optional<VerificationData> findVerification(String id);
+    void markVerificationUsed(String id, Instant usedAt);
 }
