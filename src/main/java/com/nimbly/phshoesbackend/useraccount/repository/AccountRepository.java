@@ -11,4 +11,6 @@ public interface AccountRepository {
 
     void recordFailedLogin(String userIdOrEmail, int maxFailures, int lockSeconds);
     void recordSuccessfulLogin(String userId, String ip, String userAgent);
+
+    void deleteById(String userId);
 }

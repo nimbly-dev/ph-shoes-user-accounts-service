@@ -32,8 +32,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/user-accounts/register").permitAll()
                         .requestMatchers(HttpMethod.GET,  "/api/v1/user-accounts/verify/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()   // <-- add this
-                        // .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll() // if you add refresh later
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/user-accounts/delete").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
