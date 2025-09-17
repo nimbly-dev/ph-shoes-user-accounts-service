@@ -9,10 +9,11 @@ import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundExcep
 import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
+import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
 import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
+import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
-import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -72,16 +73,15 @@ public class UserAccountsServiceImpl implements UserAccountsService {
                 .expressionAttributeNames(Map.of("#pk", AccountAttrs.PK_USERID))
                 .build());
 
-        // Best-effort: create verification + send email (resend endpoint covers failures)
         try {
-            createAndSendVerification(userId, emailRaw, emailHash);
+            createAndSendVerification(userId, emailRaw, emailNorm);
         } catch (Exception e) {
-            log.warn("Failed to create/send verification for userid={}: {}", userId, e.toString());
+            log.warn("verification.send failed userId={} msg={}", userId, e.toString());
         }
 
         return AccountResponse.builder()
                 .userid(userId)
-                .email(emailRaw) // plaintext not stored; returning the input is fine
+                .email(emailRaw)
                 .isVerified(false)
                 .createdAt(now.toString())
                 .updatedAt(now.toString())
@@ -95,15 +95,14 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         final String userId = findUserIdByEmailHash(emailHash);
 
         if (userId == null) {
-            log.info("Resend requested for non-existing emailHash={}", emailHash.substring(0, Math.min(8, emailHash.length())));
+            log.info("verify.resend no_account emailHash={}", emailHash.substring(0, Math.min(8, emailHash.length())));
             return;
         }
-
         if (Boolean.TRUE.equals(getAccountVerified(userId))) {
-            log.info("Resend requested but account already verified userId={}", userId);
+            log.info("verify.resend already_verified userId={}", userId);
             return;
         }
-        createAndSendVerification(userId, emailRaw, emailHash);
+        createAndSendVerification(userId, emailRaw, emailNorm);
     }
 
     @Override
@@ -115,7 +114,6 @@ public class UserAccountsServiceImpl implements UserAccountsService {
             throw new InvalidVerificationTokenException("Signature or format invalid");
         }
 
-        // 1) Load verification item
         Map<String, AttributeValue> vkey = Map.of(
                 VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(verificationId).build()
         );
@@ -127,23 +125,21 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         if (!getV.hasItem()) throw new VerificationNotFoundException("id=" + verificationId);
         var vitem = getV.item();
 
-        String status    = vitem.get(VerificationAttrs.STATUS).s();
-        long   expiresAt = Long.parseLong(vitem.get(VerificationAttrs.EXPIRES_AT).n());
-        String userId    = vitem.get(VerificationAttrs.USER_ID).s();
-        long   nowSec    = Instant.now().getEpochSecond();
+        String status     = vitem.get(VerificationAttrs.STATUS).s();
+        long   expiresAt  = Long.parseLong(vitem.get(VerificationAttrs.EXPIRES_AT).n());
+        String userId     = vitem.get(VerificationAttrs.USER_ID).s();
+        String emailPlain = vitem.containsKey(VerificationAttrs.EMAIL_PLAIN)
+                ? vitem.get(VerificationAttrs.EMAIL_PLAIN).s()
+                : null;
+        long   nowSec     = Instant.now().getEpochSecond();
 
-        if (expiresAt <= nowSec) {
-            throw new VerificationExpiredException("verificationId=" + verificationId);
-        }
-        if (!"PENDING".equals(status)) {
-            throw new VerificationAlreadyUsedException("status=" + status);
-        }
+        if (expiresAt <= nowSec) throw new VerificationExpiredException("verificationId=" + verificationId);
+        if (!"PENDING".equals(status)) throw new VerificationAlreadyUsedException("status=" + status);
 
-        // 2) Transaction: mark account verified + consume the verification (with condition on status & expiry)
         var nowIso = Instant.now().toString();
+
         ddb.transactWriteItems(TransactWriteItemsRequest.builder()
                 .transactItems(
-                        // Update account
                         TransactWriteItem.builder().update(Update.builder()
                                 .tableName(AccountAttrs.TABLE)
                                 .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
@@ -154,7 +150,6 @@ public class UserAccountsServiceImpl implements UserAccountsService {
                                         ":now",  AttributeValue.builder().s(nowIso).build()
                                 ))
                                 .build()).build(),
-                        // Consume verification (ensure still pending & not expired)
                         TransactWriteItem.builder().update(Update.builder()
                                 .tableName(VerificationAttrs.TABLE)
                                 .key(vkey)
@@ -174,7 +169,6 @@ public class UserAccountsServiceImpl implements UserAccountsService {
                                 .build()).build()
                 ).build());
 
-        // 3) Return fresh account state
         var acc = ddb.getItem(GetItemRequest.builder()
                 .tableName(AccountAttrs.TABLE)
                 .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
@@ -182,7 +176,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
 
         return AccountResponse.builder()
                 .userid(userId)
-                .email(null) // plaintext email not stored
+                .email(emailPlain) // plaintext from verification item
                 .isVerified(true)
                 .createdAt(acc.get(AccountAttrs.CREATED_AT).s())
                 .updatedAt(nowIso)
@@ -192,11 +186,11 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     @Override
     public void deleteOwnAccount(String userId) {
         log.info("accounts.delete start userId={}", userId);
-        accountRepository.deleteById(userId); // idempotent delete
+        accountRepository.deleteById(userId);
         log.info("accounts.delete success userId={}", userId);
     }
 
-    // -------------------- Helpers --------------------
+    // ---- helpers ----
 
     private boolean existsByEmailHash(String emailHash) {
         var r = ddb.query(QueryRequest.builder()
@@ -234,23 +228,23 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         return item.containsKey(AccountAttrs.IS_VERIFIED) ? item.get(AccountAttrs.IS_VERIFIED).bool() : null;
     }
 
-    private void createAndSendVerification(String userId, String emailRaw, String emailHash) {
+    private void createAndSendVerification(String userId, String emailRaw, String emailNorm) {
         String verificationId = UUID.randomUUID().toString();
         long now = Instant.now().getEpochSecond();
         long expires = now + vprops.getTtlSeconds();
 
-        var rng  = new SecureRandom();
-        String code = String.format("%06d", rng.nextInt(1_000_000));
+        String code = String.format("%06d", new SecureRandom().nextInt(1_000_000));
         String codeHash = passwordEncoder.encode(code);
 
         Map<String, AttributeValue> vitem = new HashMap<>();
         vitem.put(VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(verificationId).build());
-        vitem.put(VerificationAttrs.USER_ID,    AttributeValue.builder().s(userId).build());
-        vitem.put(VerificationAttrs.EMAIL_HASH, AttributeValue.builder().s(emailHash).build());
-        vitem.put(VerificationAttrs.CODE_HASH,  AttributeValue.builder().s(codeHash).build()); // keep "code" attr for compatibility
-        vitem.put(VerificationAttrs.STATUS,     AttributeValue.builder().s("PENDING").build());
-        vitem.put(VerificationAttrs.EXPIRES_AT, AttributeValue.builder().n(Long.toString(expires)).build()); // TTL attr
-        vitem.put(VerificationAttrs.CREATED_AT, AttributeValue.builder().s(Instant.ofEpochSecond(now).toString()).build());
+        vitem.put(VerificationAttrs.USER_ID,     AttributeValue.builder().s(userId).build());
+        vitem.put(VerificationAttrs.EMAIL_HASH,  AttributeValue.builder().s(HashingUtil.sha256Hex(emailNorm)).build());
+        vitem.put(VerificationAttrs.EMAIL_PLAIN, AttributeValue.builder().s(emailNorm).build());
+        vitem.put(VerificationAttrs.CODE_HASH,   AttributeValue.builder().s(codeHash).build());
+        vitem.put(VerificationAttrs.STATUS,      AttributeValue.builder().s("PENDING").build());
+        vitem.put(VerificationAttrs.EXPIRES_AT,  AttributeValue.builder().n(Long.toString(expires)).build());
+        vitem.put(VerificationAttrs.CREATED_AT,  AttributeValue.builder().s(Instant.ofEpochSecond(now).toString()).build());
 
         ddb.putItem(PutItemRequest.builder()
                 .tableName(VerificationAttrs.TABLE)
@@ -261,7 +255,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         String link  = vprops.getLinkBaseUrl() + "?token=" + token;
 
         notifier.sendEmailVerification(emailRaw, link, code);
-        log.info("Verification created for userId={} verificationId={} (expires {}s)", userId, verificationId, vprops.getTtlSeconds());
+        log.info("verification.created userId={} verificationId={} ttl={}", userId, verificationId, vprops.getTtlSeconds());
     }
 
     private String buildToken(String verificationId) {
@@ -269,16 +263,14 @@ public class UserAccountsServiceImpl implements UserAccountsService {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(vprops.getSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] sig = mac.doFinal(verificationId.getBytes(StandardCharsets.UTF_8));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(verificationId.getBytes(StandardCharsets.UTF_8))
-                    + "." +
-                    Base64.getUrlEncoder().withoutPadding().encodeToString(sig);
+            return base64Url(verificationId) + "." + base64Url(sig);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     private String parseAndVerifyToken(String token) {
-        String[] parts = token.split("\\.");
+        String[] parts = token == null ? new String[0] : token.split("\\.");
         if (parts.length != 2) throw new InvalidVerificationTokenException("Invalid token format");
         String id  = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
         byte[] sig = Base64.getUrlDecoder().decode(parts[1]);
@@ -286,7 +278,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(vprops.getSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] expected = mac.doFinal(id.getBytes(StandardCharsets.UTF_8));
-            if (!Arrays.equals(sig, expected)) throw new InvalidVerificationTokenException("Invalid token signature");
+            if (!constantTimeEquals(sig, expected)) throw new InvalidVerificationTokenException("Invalid token signature");
             return id;
         } catch (InvalidVerificationTokenException e) {
             throw e;
@@ -295,15 +287,17 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         }
     }
 
-    private static final class VerificationAttrs {
-        static final String TABLE = "account_verifications";
-        static final String PK_VERIFICATION_ID = "verificationId";
-        static final String USER_ID     = "userId";
-        static final String EMAIL_HASH  = "emailHash";
-        static final String CODE_HASH   = "code";      // keep as-is to match your current table
-        static final String STATUS      = "status";
-        static final String EXPIRES_AT  = "expiresAt"; // TTL attribute (Number)
-        static final String CREATED_AT  = "createdAt";
-        static final String VERIFIED_AT = "verifiedAt";
+    private static boolean constantTimeEquals(byte[] a, byte[] b) {
+        if (a == null || b == null || a.length != b.length) return false;
+        int r = 0; for (int i = 0; i < a.length; i++) r |= a[i] ^ b[i];
+        return r == 0;
+    }
+
+    private static String base64Url(String s) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String base64Url(byte[] bytes) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }
