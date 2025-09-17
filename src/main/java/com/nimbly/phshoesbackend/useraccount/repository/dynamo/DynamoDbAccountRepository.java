@@ -138,6 +138,12 @@ public class DynamoDbAccountRepository implements AccountRepository {
         });
     }
 
+    @Override
+    public void deleteById(String userId) {
+        if (userId == null || userId.isBlank()) return;
+        table().deleteItem(Key.builder().partitionValue(userId).build());
+    }
+
     private static String normalize(String email) {
         return email.trim().toLowerCase();
     }

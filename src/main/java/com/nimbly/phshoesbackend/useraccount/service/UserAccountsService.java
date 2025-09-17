@@ -7,4 +7,5 @@ public interface UserAccountsService {
     AccountResponse register(AccountCreateRequest request);
     AccountResponse verifyByToken(String token);
     void resendVerification(String email);
+    void deleteOwnAccount(String userId);
 }

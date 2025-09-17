@@ -9,6 +9,7 @@ import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundExcep
 import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
+import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
@@ -41,6 +42,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final NotificationService notifier;
     private final AppVerificationProps vprops;
+    private final AccountRepository accountRepository;
 
     @Override
     public AccountResponse register(AccountCreateRequest req) {
@@ -185,6 +187,13 @@ public class UserAccountsServiceImpl implements UserAccountsService {
                 .createdAt(acc.get(AccountAttrs.CREATED_AT).s())
                 .updatedAt(nowIso)
                 .build();
+    }
+
+    @Override
+    public void deleteOwnAccount(String userId) {
+        log.info("accounts.delete start userId={}", userId);
+        accountRepository.deleteById(userId); // idempotent delete
+        log.info("accounts.delete success userId={}", userId);
     }
 
     // -------------------- Helpers --------------------
