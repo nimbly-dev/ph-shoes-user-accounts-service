@@ -8,6 +8,7 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.AccountLockedExcepti
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.LockoutProps;
+import com.nimbly.phshoesbackend.useraccount.exception.EmailNotVerifiedException;
 import com.nimbly.phshoesbackend.useraccount.model.Account;
 import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -51,11 +52,13 @@ public class AuthServiceImpl implements AuthService {
                 log.warn("auth.login no_account emailHash={}", sha256Hex(email));
             }
 
+            // lockout check (if account exists)
             if (opt.isPresent() && isLocked(opt.get())) {
                 log.warn("auth.login locked userId={} emailHash={}", opt.get().getUserid(), sha256Hex(email));
                 throw new AccountLockedException();
             }
 
+            // password verification (burn cycles if user unknown)
             final boolean passwordOk;
             if (opt.isPresent()) {
                 String stored = opt.get().getPassword();
@@ -65,11 +68,10 @@ public class AuthServiceImpl implements AuthService {
                     passwordOk = false;
                 } else {
                     passwordOk = passwordEncoder.matches(rawPassword, stored);
-                    log.debug("auth.login password_match userId={} match={}",
-                            opt.get().getUserid(), passwordOk);
+                    log.debug("auth.login password_match userId={} match={}", opt.get().getUserid(), passwordOk);
                 }
             } else {
-                passwordEncoder.matches(rawPassword, dummyHash); // burn cycles
+                passwordEncoder.matches(rawPassword, dummyHash); // equalize timing
                 passwordOk = false;
             }
 
@@ -80,12 +82,23 @@ public class AuthServiceImpl implements AuthService {
                 throw new InvalidCredentialsException();
             }
 
+            // success path
             final Account acc = opt.get();
+
+            // BLOCK unverified users
+            Boolean verified = acc.getEmailVerified();
+            if (verified == null || !verified) {
+                log.warn("auth.login unverified userId={} emailHash={}", acc.getUserid(), sha256Hex(email));
+                throw new EmailNotVerifiedException();
+            }
+
+            // record telemetry & reset counters
             accounts.recordSuccessfulLogin(acc.getUserid(), ip, userAgent);
 
+            // issue token
             final String token = jwtTokenProvider.issueAccessToken(acc.getUserid(), email);
 
-            // Create session (requires token to contain a jti)
+            // create session from token (requires jti + exp in token)
             var decoded = jwtTokenProvider.parseAccess(token);
             String jti = decoded.getId();
             if (jti == null || jti.isBlank() || decoded.getExpiresAt() == null) {
@@ -95,6 +108,7 @@ public class AuthServiceImpl implements AuthService {
             long exp = decoded.getExpiresAt().toInstant().getEpochSecond();
             accounts.createSession(jti, acc.getUserid(), exp, ip, userAgent);
 
+            // response
             TokenResponse res = new TokenResponse();
             res.setAccess_token(token);
             res.setExpires_in(authProps.getAccessTtlSeconds());
@@ -105,9 +119,10 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException e) {
             log.error("auth.login error emailHash={} ip={} ua={} msg={}",
                     sha256Hex(email), ip, truncate(userAgent, 64), e.toString(), e);
-            throw e;
+            throw e; // GlobalExceptionHandler will format the response
         }
     }
+
 
     @Override
     public void logout(String authorizationHeader) {
