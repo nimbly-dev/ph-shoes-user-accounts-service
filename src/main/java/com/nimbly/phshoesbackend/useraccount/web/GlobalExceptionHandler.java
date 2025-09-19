@@ -190,6 +190,14 @@ public class GlobalExceptionHandler {
                 Map.of("global", List.of("Something went wrong on our side. Please try again."))
         );
     }
-
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleEmailNotVerified(Exception ex) {
+        return new ErrorResponse(
+                HttpStatus.FORBIDDEN.value(),
+                HttpStatus.FORBIDDEN.getReasonPhrase(),
+                Map.of("verification", List.of("Please verify your email to continue."))
+        );
+    }
 
 }
