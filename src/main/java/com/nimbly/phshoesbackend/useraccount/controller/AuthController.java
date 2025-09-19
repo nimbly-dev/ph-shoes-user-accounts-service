@@ -45,7 +45,7 @@ public class AuthController {
         String authz = request.getHeader(HttpHeaders.AUTHORIZATION);
         authService.logout(authz);
         ResponseCookie clear = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true).secure(false)   // set secure=true in prod (HTTPS)
+                .httpOnly(true).secure(false)
                 .sameSite("Lax").path("/api/v1/auth")
                 .maxAge(Duration.ZERO)
                 .build();

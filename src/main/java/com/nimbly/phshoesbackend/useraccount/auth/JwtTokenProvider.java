@@ -6,11 +6,13 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.Verification;
+import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.AppAuthProps;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.UUID;
 
 @Component
@@ -24,18 +26,19 @@ public class JwtTokenProvider {
     }
 
     public String issueAccessToken(String userId, String email) {
-        Instant now = Instant.now();
-        Instant exp = now.plusSeconds(authProps.getAccessTtlSeconds());
+        var alg = Algorithm.HMAC256(authProps.getSecret());
+        var now = Instant.now();
+        var exp = now.plusSeconds(authProps.getAccessTtlSeconds());
         return JWT.create()
                 .withIssuer(authProps.getIssuer())
                 .withSubject(userId)
-                .withAudience("ph-shoes-frontend")
                 .withClaim("email", email)
-                .withIssuedAt(now)
-                .withExpiresAt(exp)
+                .withIssuedAt(Date.from(now))
+                .withExpiresAt(Date.from(exp))
                 .withJWTId(UUID.randomUUID().toString())
                 .sign(alg);
     }
+
 
     public DecodedJWT verify(String token) {
         return JWT.require(alg)
@@ -46,19 +49,15 @@ public class JwtTokenProvider {
 
 
     public DecodedJWT parseAccess(String token) {
-        Algorithm alg = Algorithm.HMAC256(authProps.getSecret());
-        Verification v = JWT.require(alg);
-        if (StringUtils.hasText(authProps.getIssuer())) {
-            v = v.withIssuer(authProps.getIssuer());
-        }
-        JWTVerifier verifier = v.build();
         try {
-            return verifier.verify(token);
+            var alg = Algorithm.HMAC256(authProps.getSecret());
+            var v = JWT.require(alg);
+            if (StringUtils.hasText(authProps.getIssuer())) v = v.withIssuer(authProps.getIssuer());
+            return v.build().verify(token);
         } catch (JWTVerificationException e) {
-            throw new com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException();
+            throw new InvalidCredentialsException();
         }
     }
-
     public String userIdFromAuthorizationHeader(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             throw new com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException();

@@ -186,6 +186,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     @Override
     public void deleteOwnAccount(String userId) {
         log.info("accounts.delete start userId={}", userId);
+        accountRepository.revokeAllSessionsForUser(userId);
         accountRepository.deleteById(userId);
         log.info("accounts.delete success userId={}", userId);
     }

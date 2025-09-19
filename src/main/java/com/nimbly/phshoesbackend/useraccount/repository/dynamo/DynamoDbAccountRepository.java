@@ -1,6 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.repository.dynamo;
 
 import com.nimbly.phshoesbackend.useraccount.model.Account;
+import com.nimbly.phshoesbackend.useraccount.model.dto.SessionItemDto;
 import com.nimbly.phshoesbackend.useraccount.model.dto.VerificationData;
 import com.nimbly.phshoesbackend.useraccount.model.dto.VerificationItemDto;
 import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
@@ -28,10 +29,37 @@ public class DynamoDbAccountRepository implements AccountRepository {
 
     private static final String TABLE = "accounts";
     private static final String GSI_EMAIL = "gsi_email";
-
+    private static final String SESSIONS_TABLE = "auth_sessions";
+    private static final String SESSION_GSI_USER = "gsi_userId";
     private static final String VERIF_TABLE = "verifications";
 
     private final DynamoDbEnhancedClient enhanced;
+
+    private static final TableSchema<SessionItemDto> SESSIONS_SCHEMA =
+            StaticTableSchema.builder(SessionItemDto.class)
+                    .newItemSupplier(SessionItemDto::new)
+                    .addAttribute(String.class,  a -> a.name("jti")
+                            .getter(SessionItemDto::getJti).setter(SessionItemDto::setJti)
+                            .tags(StaticAttributeTags.primaryPartitionKey()))
+                    .addAttribute(String.class,  a -> a.name("userId")
+                            .getter(SessionItemDto::getUserId).setter(SessionItemDto::setUserId)
+                            // ⬇️ THIS TAG IS REQUIRED so index("gsi_userId") knows its PK
+                            .tags(StaticAttributeTags.secondaryPartitionKey(SESSION_GSI_USER)))
+                    .addAttribute(String.class,  a -> a.name("status")
+                            .getter(SessionItemDto::getStatus).setter(SessionItemDto::setStatus))
+                    .addAttribute(Long.class,    a -> a.name("ttl")
+                            .getter(SessionItemDto::getTtl).setter(SessionItemDto::setTtl))
+                    .addAttribute(Instant.class, a -> a.name("createdAt")
+                            .getter(SessionItemDto::getCreatedAt).setter(SessionItemDto::setCreatedAt))
+                    .addAttribute(Instant.class, a -> a.name("expiresAt")
+                            .getter(SessionItemDto::getExpiresAt).setter(SessionItemDto::setExpiresAt))
+                    .addAttribute(Instant.class, a -> a.name("revokedAt")
+                            .getter(SessionItemDto::getRevokedAt).setter(SessionItemDto::setRevokedAt))
+                    .build();
+
+    private DynamoDbTable<SessionItemDto> sessionsTable() {
+        return enhanced.table(SESSIONS_TABLE, SESSIONS_SCHEMA);
+    }
 
     /** accounts table schema */
     private static final TableSchema<Account> ACCOUNT_SCHEMA =
@@ -178,41 +206,61 @@ public class DynamoDbAccountRepository implements AccountRepository {
 
 
     @Override
-    public String createVerification(String userId, String emailPlain, int ttlSeconds) {
-        var id  = UUID.randomUUID().toString();
+    public void createSession(String jti, String userId, long expEpochSeconds, String ip, String ua) {
         var now = Instant.now();
-
-        var v = new VerificationItemDto();
-        v.setId(id);
-        v.setUserId(userId);
-        v.setEmailPlain(emailPlain);
-        v.setCreatedAt(now);
-        v.setExpiresAt(now.plusSeconds(ttlSeconds));
-        v.setUsedAt(null);
-        v.setTtl(now.plusSeconds(ttlSeconds + 60).getEpochSecond()); // TTL grace
-
-        verifTable().putItem(v);
-        return id;
+        var it = new SessionItemDto();
+        it.setJti(jti);
+        it.setUserId(userId);
+        it.setStatus("ACTIVE");
+        it.setCreatedAt(now);
+        it.setExpiresAt(Instant.ofEpochSecond(expEpochSeconds));
+        it.setTtl(expEpochSeconds + 60);
+        sessionsTable().putItem(it);
     }
 
     @Override
-    public Optional<VerificationData> findVerification(String id) {
-        if (id == null || id.isBlank()) return Optional.empty();
-        var v = verifTable().getItem(Key.builder().partitionValue(id).build());
-        if (v == null) return Optional.empty();
-        return Optional.of(new VerificationData(
-                v.getId(), v.getUserId(), v.getEmailPlain(), v.getExpiresAt(), v.getUsedAt()
-        ));
+    public boolean isSessionActive(String jti) {
+        if (jti == null || jti.isBlank()) return false;
+        var it = sessionsTable().getItem(Key.builder().partitionValue(jti).build());
+        if (it == null) return false;
+        if (!"ACTIVE".equals(it.getStatus())) return false;
+        var exp = it.getExpiresAt();
+        return exp == null || Instant.now().isBefore(exp);
     }
 
     @Override
-    public void markVerificationUsed(String id, Instant usedAt) {
-        var key = Key.builder().partitionValue(id).build();
-        var v = verifTable().getItem(key);
-        if (v != null && v.getUsedAt() == null) {
-            v.setUsedAt(usedAt);
-            verifTable().updateItem(v);
-        }
+    public void revokeSession(String jti) {
+        var it = sessionsTable().getItem(Key.builder().partitionValue(jti).build());
+        if (it == null) return;
+        if (!"ACTIVE".equals(it.getStatus())) return;
+        it.setStatus("REVOKED");
+        it.setRevokedAt(Instant.now());
+        // keep TTL as-is (or shorten): item will auto-expire
+        sessionsTable().updateItem(it);
+    }
+
+    @Override
+    public void revokeAllSessionsForUser(String userId) {
+        if (userId == null || userId.isBlank()) return;
+
+        var idx = sessionsTable().index(SESSION_GSI_USER);
+        var req = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(userId).build()))
+                .build();
+
+        var now = Instant.now();
+        long ttlNow = now.getEpochSecond() + 60; // speed up TTL purge
+
+        idx.query(req).stream()
+                .flatMap(p -> p.items().stream())
+                .forEach(it -> {
+                    if (!"REVOKED".equals(it.getStatus())) {
+                        it.setStatus("REVOKED");
+                        it.setRevokedAt(now);
+                        if (it.getTtl() == null || it.getTtl() > ttlNow) it.setTtl(ttlNow);
+                        sessionsTable().updateItem(it);
+                    }
+                });
     }
 
 
