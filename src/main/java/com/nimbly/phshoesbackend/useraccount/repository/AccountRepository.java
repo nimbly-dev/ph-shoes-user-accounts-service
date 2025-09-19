@@ -16,7 +16,9 @@ public interface AccountRepository {
 
     void deleteById(String userId);
 
-    String createVerification(String userId, String emailPlain, int ttlSeconds);
-    Optional<VerificationData> findVerification(String id);
-    void markVerificationUsed(String id, Instant usedAt);
+    void createSession(String jti, String userId, long expEpochSeconds, String ip, String ua);
+    boolean isSessionActive(String jti);
+    void revokeSession(String jti);
+
+    void revokeAllSessionsForUser(String userid);
 }

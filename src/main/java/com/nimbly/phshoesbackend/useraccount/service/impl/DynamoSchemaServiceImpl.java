@@ -73,6 +73,44 @@ public class DynamoSchemaServiceImpl implements DynamoSchemaService {
                 .build());
     }
 
+    @Override
+    public void ensureAuthSessionsTable() {
+        final String table = "auth_sessions";
+        try {
+            ddb.describeTable(b -> b.tableName(table));
+            log.info("DynamoDB table {} already exists", table);
+            return;
+        } catch (ResourceNotFoundException ignored) {
+            log.info("Creating DynamoDB table {}", table);
+        }
+
+        ddb.createTable(CreateTableRequest.builder()
+                .tableName(table)
+                .billingMode(BillingMode.PAY_PER_REQUEST)
+                .attributeDefinitions(
+                        AttributeDefinition.builder().attributeName("jti").attributeType(ScalarAttributeType.S).build(),
+                        AttributeDefinition.builder().attributeName("userId").attributeType(ScalarAttributeType.S).build()
+                )
+                .keySchema(KeySchemaElement.builder().attributeName("jti").keyType(KeyType.HASH).build())
+                .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
+                        .indexName("gsi_userId")
+                        .keySchema(KeySchemaElement.builder().attributeName("userId").keyType(KeyType.HASH).build())
+                        .projection(Projection.builder().projectionType(ProjectionType.ALL).build())
+                        .build())
+                .build());
+
+        ddb.waiter().waitUntilTableExists(DescribeTableRequest.builder().tableName(table).build());
+        log.info("Created table {}", table);
+
+        ddb.updateTimeToLive(UpdateTimeToLiveRequest.builder()
+                .tableName(table)
+                .timeToLiveSpecification(TimeToLiveSpecification.builder()
+                        .attributeName("ttl")
+                        .enabled(true)
+                        .build())
+                .build());
+    }
+
     /* ====== accounts ====== */
     private void ensureAccounts() throws InterruptedException {
         if (!exists(ACCOUNTS)) {

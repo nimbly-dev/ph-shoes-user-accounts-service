@@ -24,13 +24,11 @@ public class SchemaInitRunner {
 
     @Bean
     ApplicationRunner runSchemaInit() {
-        if (env.acceptsProfiles("dev")) {
-            schemaService.ensureVerificationTable();
-        }
-
         return args -> {
             log.info("SchemaInitRunner starting...");
             schemaService.ensureBaseSchema();
+            schemaService.ensureAuthSessionsTable();
+            schemaService.ensureVerificationTable();
             log.info("SchemaInitRunner done.");
         };
     }

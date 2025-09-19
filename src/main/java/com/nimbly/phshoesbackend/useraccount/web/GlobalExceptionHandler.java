@@ -7,6 +7,7 @@ import com.nimbly.phshoesbackend.useraccount.exception.*;
 import com.nimbly.phshoesbackend.useraccount.model.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.*;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -165,13 +167,29 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(AccountNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleAccountNotFound(Exception ex) {
+        return new ErrorResponse(404, "Not Found", Map.of("account", List.of("Account not found or already deleted")));
+    }
+
+    @ExceptionHandler(SessionNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleSessionNotFound(Exception ex) {
+        return new ErrorResponse(404, "Not Found", Map.of("session", List.of("Session not found or already revoked")));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleAny(Exception ex, HttpServletRequest req) {
+        log.error("Unhandled error on {} {} -> {}", req.getMethod(), req.getRequestURI(), ex.toString(), ex);
+
         return new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                Map.of("global", List.of(msg("error.common.internal")))
+                Map.of("global", List.of("Something went wrong on our side. Please try again."))
         );
     }
+
+
 }

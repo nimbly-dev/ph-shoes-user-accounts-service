@@ -9,7 +9,7 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsEx
 import com.nimbly.phshoesbackend.useraccount.config.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.model.Account;
-import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;   // <-- use repo
+import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,12 +29,10 @@ public class AuthServiceImpl implements AuthService {
     private final AppAuthProps authProps;
     private final LockoutProps lockProps;
 
-    /** Precomputed dummy hash to equalize timing when email does not exist. */
     private String dummyHash;
 
     @jakarta.annotation.PostConstruct
     void init() {
-        // Generate a dummy BCrypt hash at runtime (same cost as real check)
         this.dummyHash = passwordEncoder.encode("dummy-password-for-timing");
     }
 
@@ -71,8 +69,7 @@ public class AuthServiceImpl implements AuthService {
                             opt.get().getUserid(), passwordOk);
                 }
             } else {
-                // burn cycles to hide user existence
-                passwordEncoder.matches(rawPassword, dummyHash);
+                passwordEncoder.matches(rawPassword, dummyHash); // burn cycles
                 passwordOk = false;
             }
 
@@ -88,6 +85,16 @@ public class AuthServiceImpl implements AuthService {
 
             final String token = jwtTokenProvider.issueAccessToken(acc.getUserid(), email);
 
+            // Create session (requires token to contain a jti)
+            var decoded = jwtTokenProvider.parseAccess(token);
+            String jti = decoded.getId();
+            if (jti == null || jti.isBlank() || decoded.getExpiresAt() == null) {
+                log.error("auth.login token_missing_jti_or_exp userId={}", acc.getUserid());
+                throw new IllegalStateException("Token missing jti/exp");
+            }
+            long exp = decoded.getExpiresAt().toInstant().getEpochSecond();
+            accounts.createSession(jti, acc.getUserid(), exp, ip, userAgent);
+
             TokenResponse res = new TokenResponse();
             res.setAccess_token(token);
             res.setExpires_in(authProps.getAccessTtlSeconds());
@@ -98,17 +105,35 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException e) {
             log.error("auth.login error emailHash={} ip={} ua={} msg={}",
                     sha256Hex(email), ip, truncate(userAgent, 64), e.toString(), e);
-            throw e; // let the GlobalExceptionHandler convert to response
+            throw e;
         }
     }
 
     @Override
     public void logout(String authorizationHeader) {
-        String token = null;
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            token = authorizationHeader.substring(7);
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            log.warn("auth.logout missing_or_bad_authorization_header");
+            throw new InvalidCredentialsException(); // -> 401
         }
-        log.info("auth.logout tokenPresent={}", token != null);
+
+        String token = authorizationHeader.substring(7).trim();
+        var jwt = jwtTokenProvider.parseAccess(token); // throws on invalid/expired
+
+        String jti = jwt.getId();
+        if (jti == null || jti.isBlank()) {
+            log.warn("auth.logout missing_jti");
+            throw new InvalidCredentialsException();
+        }
+
+        // Second logout or unknown session -> 401
+        if (!accounts.isSessionActive(jti)) {
+            log.info("auth.logout not_active jti={}", jti);
+            throw new InvalidCredentialsException();
+        }
+
+        // First logout -> revoke and return 204
+        accounts.revokeSession(jti);
+        log.info("auth.logout revoked jti={} sub={}", jti, jwt.getSubject());
     }
 
     private static String normalizeEmail(String email) {
@@ -119,7 +144,6 @@ public class AuthServiceImpl implements AuthService {
         Long until = acc.getLockUntil();
         return until != null && until > System.currentTimeMillis();
     }
-
 
     private static String maskEmail(String email) {
         if (email == null || email.isBlank()) return "(blank)";
