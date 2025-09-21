@@ -1,4 +1,10 @@
-# src/main/resources/application-prod.yml
+app:
+  cors:
+    allowed-origins:
+      - "https://your-frontend.example.com"
+  frontend:
+    base-url: "https://your-frontend.example.com"
+    verify-path: "/"
 
 spring:
   application:
