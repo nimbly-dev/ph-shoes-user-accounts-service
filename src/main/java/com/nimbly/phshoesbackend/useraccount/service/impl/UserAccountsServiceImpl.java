@@ -1,5 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.service.impl;
 
+import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
+import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.exception.EmailAlreadyRegisteredException;
 import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
@@ -10,6 +12,7 @@ import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
+import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
 import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
@@ -44,6 +47,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     private final NotificationService notifier;
     private final AppVerificationProps vprops;
     private final AccountRepository accountRepository;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
     public AccountResponse register(AccountCreateRequest req) {
@@ -189,6 +193,19 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         accountRepository.revokeAllSessionsForUser(userId);
         accountRepository.deleteById(userId);
         log.info("accounts.delete success userId={}", userId);
+    }
+
+    @Override
+    public GetContentFromTokenResponse getContentFromTokenBearer(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new InvalidCredentialsException();
+        }
+
+        String token = authorizationHeader.substring(7).trim();
+        var jwt = jwtTokenProvider.parseAccess(token);
+
+        String email = jwt.getClaim("email").asString();
+        return new GetContentFromTokenResponse(email == null ? "" : email);
     }
 
     // ---- helpers ----

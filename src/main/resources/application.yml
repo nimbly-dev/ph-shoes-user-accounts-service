@@ -1,3 +1,15 @@
+app:
+  cors:
+    allowed-origins: []        # default: nothing
+    allowed-methods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
+    allowed-headers: [Authorization,Content-Type]
+    exposed-headers: [Authorization,Content-Type]
+    allow-credentials: true
+    max-age: 3600
+  frontend:
+    base-url: ""
+    verify-path: "/"
+
 spring:
   application:
     name: ph-shoes-user-account-service
@@ -25,10 +37,10 @@ notify:
 verification:
   ttlSeconds: 900
   secret: ${VERIFICATION_SECRET:dev-secret-change-me}
-  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:http://localhost:8080/api/v1/user-accounts/verify}
+  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:http://localhost:8082/api/v1/user-accounts/verify}
 
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8082}
   error:
     include-stacktrace: never
     include-message: never

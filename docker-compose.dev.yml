@@ -33,7 +33,7 @@ services:
       dockerfile: DockerfileDev
     container_name: ph-shoes-account-service
     ports:
-      - "8080:8080"
+      - "8082:8082"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       # AWS SDK v2 picks these up for LocalStack (any non-empty values work)
