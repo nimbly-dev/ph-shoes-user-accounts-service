@@ -1,9 +1,16 @@
 app:
   cors:
     allowed-origins:
-      - "https://your-frontend.example.com"
+      - "https://phshoesproject.com"
+      - "https://www.phshoesproject.com"
+      - "https://ph-shoes-frontend.onrender.com"
+    allowed-methods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
+    allowed-headers: [Authorization,Content-Type]
+    exposed-headers: [Authorization,Content-Type]
+    allow-credentials: true
+    max-age: 3600
   frontend:
-    base-url: "https://your-frontend.example.com"
+    base-url: "https://phshoesproject.com/"
     verify-path: "/"
 
 spring:
@@ -25,7 +32,7 @@ management:
         include: health,info
 
 server:
-  port: ${PORT:8080}
+  port: ${PORT:8082}
   error:
     include-stacktrace: never
     include-message: never
@@ -47,4 +54,4 @@ aws:
 
 verification:
   ttlSeconds: 900
-  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:https://your-frontend.example/verify}
+  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:"https://www.phshoesproject.com/verify"}
