@@ -8,6 +8,7 @@ import com.nimbly.phshoesbackend.useraccount.model.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
@@ -179,15 +180,25 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(404, "Not Found", Map.of("session", List.of("Session not found or already revoked")));
     }
 
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleAny(Exception ex, HttpServletRequest req) {
-        log.error("Unhandled error on {} {} -> {}", req.getMethod(), req.getRequestURI(), ex.toString(), ex);
+        String traceId = Optional.ofNullable(MDC.get("traceId"))
+                .orElseGet(() -> {
+                    String t = UUID.randomUUID().toString();
+                    MDC.put("traceId", t);
+                    return t;
+                });
+
+        log.error("traceId={} method={} uri={} msg={}",
+                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage(), ex);
 
         return new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                Map.of("global", List.of("Something went wrong on our side. Please try again."))
+                Map.of("global", List.of("Something went wrong on our side. Please try again."),
+                        "traceId", List.of(traceId))
         );
     }
     @ExceptionHandler(EmailNotVerifiedException.class)
