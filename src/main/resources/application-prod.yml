@@ -45,7 +45,7 @@ logging:
 notify:
   provider: ses
   email:
-    from: "PH Shoes <no-reply@yourdomain.com>"
+    from: "PH Shoes <no-reply@phshoesproject.com>"
     subjectPrefix: "[PH-Shoes]"
 
 aws:
