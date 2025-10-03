@@ -2,7 +2,7 @@ package com.nimbly.phshoesbackend.useraccount.web;
 
 import com.nimbly.phshoesbackend.useraccount.auth.exception.AccountLockedException;
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
-import com.nimbly.phshoesbackend.useraccount.config.LockoutProps;
+import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.*;
 import com.nimbly.phshoesbackend.useraccount.model.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;

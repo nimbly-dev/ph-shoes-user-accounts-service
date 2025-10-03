@@ -10,6 +10,7 @@ import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
+import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,8 @@ public class UserAccountsController {
     @Autowired
     private final UserAccountsService accountService;
     @Autowired
+    private final VerificationService verificationService;
+    @Autowired
     private final JwtTokenProvider jwtTokenProvider;
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -40,8 +43,10 @@ public class UserAccountsController {
     private String frontendVerifyPath;
 
     public UserAccountsController(UserAccountsService accountService,
+                                  VerificationService verificationService,
                                   JwtTokenProvider jwtTokenProvider) {
         this.accountService = accountService;
+        this.verificationService = verificationService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
@@ -57,6 +62,11 @@ public class UserAccountsController {
             produces = "application/json")
     public ResponseEntity<AccountResponse> register(@Valid @RequestBody AccountCreateRequest body) {
         var created = accountService.register(body);
+        try {
+            verificationService.create(created.getUserid(), body.getEmail().trim(), body.getEmail().trim().toLowerCase());
+        } catch (Exception e) {
+            log.warn("verification.send failed userId={} msg={}", created.getUserid(), e.toString());
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -66,7 +76,7 @@ public class UserAccountsController {
         final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
 
         try {
-            AccountResponse resp = accountService.verifyByToken(token);
+            AccountResponse resp = verificationService.verifyByToken(token);
             URI loc = UriComponentsBuilder.fromUriString(base)
                     .path(path)
                     .queryParam("verified", true)
@@ -87,30 +97,30 @@ public class UserAccountsController {
         }
     }
 
-    @PostMapping("/verification/resend")
-    public ResponseEntity<Void> resend(@RequestBody ResendRequest req) {
-        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-
-        try {
-            accountService.resendVerification(req.email());
-            URI loc = UriComponentsBuilder.fromUriString(base)
-                    .path(path)
-                    .queryParam("resent", true)
-                    .queryParam("email", req.email())
-                    .build(true)
-                    .toUri();
-            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-        } catch (VerificationNotFoundException e) {
-            return redirectResend(base, path, "not_found");
-        } catch (VerificationExpiredException e) {
-            return redirectResend(base, path, "expired");
-        } catch (InvalidVerificationTokenException e) {
-            return redirectResend(base, path, "invalid");
-        } catch (Exception e) {
-            return redirectResend(base, path, "unknown");
-        }
-    }
+//    @PostMapping("/verification/resend")
+//    public ResponseEntity<Void> resend(@RequestBody ResendRequest req) {
+//        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
+//        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
+//
+//        try {
+//            verificationService.resendVerification(req.email());
+//            URI loc = UriComponentsBuilder.fromUriString(base)
+//                    .path(path)
+//                    .queryParam("resent", true)
+//                    .queryParam("email", req.email())
+//                    .build(true)
+//                    .toUri();
+//            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
+//        } catch (VerificationNotFoundException e) {
+//            return redirectResend(base, path, "not_found");
+//        } catch (VerificationExpiredException e) {
+//            return redirectResend(base, path, "expired");
+//        } catch (InvalidVerificationTokenException e) {
+//            return redirectResend(base, path, "invalid");
+//        } catch (Exception e) {
+//            return redirectResend(base, path, "unknown");
+//        }
+//    }
 
 
     @DeleteMapping("/delete")

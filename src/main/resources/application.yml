@@ -9,6 +9,9 @@ app:
   frontend:
     base-url: ""
     verify-path: "/"
+  dynamo:
+    tables:
+      email_suppression: email_suppression
 
 spring:
   application:

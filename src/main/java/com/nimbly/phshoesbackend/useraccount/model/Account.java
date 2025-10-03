@@ -15,23 +15,23 @@ import java.time.Instant;
 public class Account {
 
     // keys
-    private String userid;                 // PK
-    private String email;                  // GSI PK (login lookups)
+    private String userid;
+    private String email;
 
     // auth
     private String password;
     private Boolean emailVerified;
-    private Integer loginFailCount;        // <-- matches repo method names
+    private Integer loginFailCount;
     private Long lockUntil;
 
     // telemetry expected by repo
-    private Instant lastLoginAt;           // <-- setLastLoginAt(Instant)
-    private String  lastLoginIp;           // <-- setLastLoginIp(String)
-    private String  lastLoginUserAgent;    // <-- setLastLoginUserAgent(String)
+    private Instant lastLoginAt;
+    private String  lastLoginIp;
+    private String  lastLoginUserAgent;
 
     // housekeeping
-    private Instant createdAt;          // ISO-8601 string in Dynamo
-    private Instant updatedAt;          // ISO-8601 string in Dynamo
+    private Instant createdAt;
+    private Instant updatedAt;
 
     // ---- Key / attribute name overrides on GETTERS ----
     @DynamoDbPartitionKey

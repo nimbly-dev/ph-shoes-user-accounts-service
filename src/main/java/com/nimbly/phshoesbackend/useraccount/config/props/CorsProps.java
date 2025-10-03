@@ -1,4 +1,4 @@
-package com.nimbly.phshoesbackend.useraccount.config;
+package com.nimbly.phshoesbackend.useraccount.config.props;
 
 
 import lombok.Data;

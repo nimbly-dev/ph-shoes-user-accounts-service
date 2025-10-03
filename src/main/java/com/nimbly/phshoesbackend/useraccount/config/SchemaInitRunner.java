@@ -29,6 +29,7 @@ public class SchemaInitRunner {
             schemaService.ensureBaseSchema();
             schemaService.ensureAuthSessionsTable();
             schemaService.ensureVerificationTable();
+            schemaService.ensureSuppressionTable();
             log.info("SchemaInitRunner done.");
         };
     }
