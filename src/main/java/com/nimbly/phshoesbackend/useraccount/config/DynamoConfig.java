@@ -1,7 +1,6 @@
 package com.nimbly.phshoesbackend.useraccount.config;
 
-import com.nimbly.phshoesbackend.useraccount.config.AppAwsProps; // adjust if your props package differs
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.nimbly.phshoesbackend.useraccount.config.props.AppAwsProps; // adjust if your props package differs
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;

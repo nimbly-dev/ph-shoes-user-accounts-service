@@ -4,4 +4,5 @@ public interface DynamoSchemaService {
     void ensureBaseSchema() throws InterruptedException;
     void ensureVerificationTable();
     void ensureAuthSessionsTable();
+    void ensureSuppressionTable();
 }

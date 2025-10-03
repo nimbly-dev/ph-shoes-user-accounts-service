@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Verify your email</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:0; padding:0; background:#f6f6f6; }
+        .container { max-width: 620px; margin: 24px auto; background:#ffffff; border-radius: 8px; overflow:hidden; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+        .hdr { background:#111827; color:#fff; padding:20px 24px; font-size:18px; font-weight:600; }
+        .content { padding:24px; color:#111827; }
+        p { line-height:1.5; margin:0 0 16px; }
+        .btn { display:inline-block; padding:12px 18px; text-decoration:none; border-radius:6px; background:#2563eb; color:#fff !important; font-weight:600; }
+        .alt { font-size:12px; color:#6b7280; word-break:break-all; }
+        .sep { height:1px; background:#e5e7eb; margin:16px 0; }
+        .foot { font-size:12px; color:#6b7280; padding:0 24px 24px; }
+        a { color:#2563eb; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="hdr">PH Shoes — Verify your email</div>
+    <div class="content">
+        <p>Hi,</p>
+        <p>Tap the button below to verify your email address for PH Shoes.</p>
+        <p style="margin-top:20px;">
+            <a class="btn" href="{{VERIFY_URL}}" target="_blank" rel="noopener">Verify email</a>
+        </p>
+
+        <div class="sep"></div>
+
+        <p>If you didn’t try to sign up, you can block mail to this address for our app:</p>
+        <p style="margin-top:8px;">
+            <a href="{{NOT_ME_URL}}" target="_blank" rel="noopener">This wasn’t me</a>
+        </p>
+
+        <div class="sep"></div>
+
+        <p class="alt">If the button doesn’t work, paste this into your browser:</p>
+        <p class="alt">{{VERIFY_URL}}</p>
+    </div>
+    <div class="foot">
+        You’re receiving this because someone entered this address on PH Shoes.
+        If that wasn’t you, use “This wasn’t me” above to stop future emails.
+    </div>
+</div>
+</body>
+</html>

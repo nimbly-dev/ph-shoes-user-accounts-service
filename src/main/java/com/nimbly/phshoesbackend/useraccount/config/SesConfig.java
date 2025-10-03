@@ -1,5 +1,6 @@
 package com.nimbly.phshoesbackend.useraccount.config;
 
+import com.nimbly.phshoesbackend.useraccount.config.props.AppAwsProps;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -10,8 +11,6 @@ import software.amazon.awssdk.services.sesv2.SesV2Client;
 
 import java.net.URI;
 import java.time.Duration;
-
-import static software.amazon.awssdk.services.sesv2.SesV2Client.*;
 
 @Configuration
 public class SesConfig {

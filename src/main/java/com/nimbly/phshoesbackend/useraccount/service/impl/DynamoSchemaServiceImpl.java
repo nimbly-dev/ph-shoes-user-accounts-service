@@ -1,10 +1,12 @@
 package com.nimbly.phshoesbackend.useraccount.service.impl;
 
-import com.nimbly.phshoesbackend.useraccount.config.AppTagProps;
+import com.nimbly.phshoesbackend.useraccount.config.DynamoConfigTables;
+import com.nimbly.phshoesbackend.useraccount.config.props.AppTagProps;
 import com.nimbly.phshoesbackend.useraccount.service.DynamoSchemaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 import software.amazon.awssdk.services.dynamodb.waiters.DynamoDbWaiter;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 public class DynamoSchemaServiceImpl implements DynamoSchemaService {
 
     private final DynamoDbClient ddb;
+    private final DynamoDbEnhancedClient enhanced;
+    private final DynamoConfigTables tables;
     private final AppTagProps tags;
 
     private static final String ACCOUNTS   = "accounts";
@@ -109,6 +113,29 @@ public class DynamoSchemaServiceImpl implements DynamoSchemaService {
                         .enabled(true)
                         .build())
                 .build());
+    }
+
+    @Override
+    public void ensureSuppressionTable() {
+        String name = tables.suppressionsTableName();
+        var existing = ddb.listTables().tableNames();
+        if (!existing.contains(name)) {
+            ddb.createTable(CreateTableRequest.builder()
+                    .tableName(name)
+                    .attributeDefinitions(AttributeDefinition.builder()
+                            .attributeName("email").attributeType(ScalarAttributeType.S).build())
+                    .keySchema(KeySchemaElement.builder()
+                            .attributeName("email").keyType(KeyType.HASH).build())
+                    .billingMode(BillingMode.PAY_PER_REQUEST)
+                    .build());
+
+            // Enable TTL on expiresAt (optional)
+            ddb.updateTimeToLive(UpdateTimeToLiveRequest.builder()
+                    .tableName(name)
+                    .timeToLiveSpecification(TimeToLiveSpecification.builder()
+                            .attributeName("expiresAt").enabled(true).build())
+                    .build());
+        }
     }
 
     /* ====== accounts ====== */
