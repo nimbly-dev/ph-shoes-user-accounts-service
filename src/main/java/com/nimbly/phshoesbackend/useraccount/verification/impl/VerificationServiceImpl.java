@@ -6,6 +6,7 @@ import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedEx
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
 import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
+import com.nimbly.phshoesbackend.useraccount.model.ResolvedEmail;
 import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.VerificationEntry;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
@@ -45,7 +46,6 @@ public class VerificationServiceImpl implements VerificationService {
     private final NotificationService notifier;
     private final AppVerificationProps vprops;
 
-    // extra runtime deps we need for txn + code hashing
     private final DynamoDbClient ddb;
     private final BCryptPasswordEncoder passwordEncoder;
 
@@ -183,5 +183,13 @@ public class VerificationServiceImpl implements VerificationService {
                 .createdAt(acc.get(AccountAttrs.CREATED_AT).s())
                 .updatedAt(nowIso)
                 .build();
+    }
+
+    @Override
+    public ResolvedEmail resolveEmailForToken(String token) {
+        String id = codec.decodeAndVerify(token);
+        var v = repo.getById(id, true).orElseThrow(() -> new VerificationNotFoundException("id=" + id));
+        return new ResolvedEmail(id, v.getUserId(), Optional.ofNullable(v.getEmailPlain()).orElseThrow(
+                () -> new VerificationNotFoundException("email_missing")));
     }
 }

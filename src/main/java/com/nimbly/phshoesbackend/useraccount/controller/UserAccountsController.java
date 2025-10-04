@@ -6,9 +6,11 @@ import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenE
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
+import com.nimbly.phshoesbackend.useraccount.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
+import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import jakarta.validation.Valid;
@@ -36,6 +38,8 @@ public class UserAccountsController {
     @Autowired
     private final VerificationService verificationService;
     @Autowired
+    private final SuppressionService suppressionService;
+    @Autowired
     private final JwtTokenProvider jwtTokenProvider;
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -43,10 +47,11 @@ public class UserAccountsController {
     private String frontendVerifyPath;
 
     public UserAccountsController(UserAccountsService accountService,
-                                  VerificationService verificationService,
+                                  VerificationService verificationService, SuppressionService suppressionService,
                                   JwtTokenProvider jwtTokenProvider) {
         this.accountService = accountService;
         this.verificationService = verificationService;
+        this.suppressionService = suppressionService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
@@ -69,59 +74,6 @@ public class UserAccountsController {
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
-
-    @GetMapping("/verify")
-    public ResponseEntity<Void> verify(@RequestParam("token") String token) {
-        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-
-        try {
-            AccountResponse resp = verificationService.verifyByToken(token);
-            URI loc = UriComponentsBuilder.fromUriString(base)
-                    .path(path)
-                    .queryParam("verified", true)
-                    .queryParam("email", resp.getEmail())
-                    .build(true)
-                    .toUri();
-            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-        } catch (InvalidVerificationTokenException e) {
-            return redirect(base, path, "invalid");
-        } catch (VerificationNotFoundException e) {
-            return redirect(base, path, "not_found");
-        } catch (VerificationExpiredException e) {
-            return redirect(base, path, "expired");
-        } catch (VerificationAlreadyUsedException e) {
-            return redirect(base, path, "used");
-        } catch (Exception e) {
-            return redirect(base, path, "unknown");
-        }
-    }
-
-//    @PostMapping("/verification/resend")
-//    public ResponseEntity<Void> resend(@RequestBody ResendRequest req) {
-//        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-//        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-//
-//        try {
-//            verificationService.resendVerification(req.email());
-//            URI loc = UriComponentsBuilder.fromUriString(base)
-//                    .path(path)
-//                    .queryParam("resent", true)
-//                    .queryParam("email", req.email())
-//                    .build(true)
-//                    .toUri();
-//            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-//        } catch (VerificationNotFoundException e) {
-//            return redirectResend(base, path, "not_found");
-//        } catch (VerificationExpiredException e) {
-//            return redirectResend(base, path, "expired");
-//        } catch (InvalidVerificationTokenException e) {
-//            return redirectResend(base, path, "invalid");
-//        } catch (Exception e) {
-//            return redirectResend(base, path, "unknown");
-//        }
-//    }
-
 
     @DeleteMapping("/delete")
     public ResponseEntity<Void> deleteMyAccount(
