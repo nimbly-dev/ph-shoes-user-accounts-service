@@ -2,10 +2,7 @@ package com.nimbly.phshoesbackend.useraccount.controller;
 
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
-import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
+import com.nimbly.phshoesbackend.useraccount.exception.*;
 import com.nimbly.phshoesbackend.useraccount.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
@@ -46,38 +43,40 @@ public class UserAccountsController {
     @Value("${app.frontend.verify-path:/}")
     private String frontendVerifyPath;
 
-    public UserAccountsController(UserAccountsService accountService,
-                                  VerificationService verificationService, SuppressionService suppressionService,
-                                  JwtTokenProvider jwtTokenProvider) {
+    public UserAccountsController(UserAccountsService accountService, VerificationService verificationService, SuppressionService suppressionService, JwtTokenProvider jwtTokenProvider) {
         this.accountService = accountService;
         this.verificationService = verificationService;
         this.suppressionService = suppressionService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE) // ← no path here
-    public ResponseEntity<GetContentFromTokenResponse> getEmailFromToken(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authz) {
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<GetContentFromTokenResponse> getEmailFromToken(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authz) {
         var dto = accountService.getContentFromTokenBearer(authz);
-        return ResponseEntity.ok(dto); // 200 is correct for GET
+        return ResponseEntity.ok(dto);
     }
-    
-    @PostMapping(value = "/register",
-            consumes = "application/json",
-            produces = "application/json")
+
+    @PostMapping(consumes = "application/json", produces = "application/json")
     public ResponseEntity<AccountResponse> register(@Valid @RequestBody AccountCreateRequest body) {
-        var created = accountService.register(body);
+        AccountResponse created = accountService.register(body);
         try {
+            log.info("created user with id {}", created.getUserid());
             verificationService.create(created.getUserid(), body.getEmail().trim(), body.getEmail().trim().toLowerCase());
-        } catch (Exception e) {
-            log.warn("verification.send failed userId={} msg={}", created.getUserid(), e.toString());
+        } catch (NotificationSendException ex) {
+            log.warn("verification.send failed userId={} msg={}", created.getUserid(), ex.toString());
+//            accountService.deleteOwnAccount(created.getUserid());
+            throw ex;
+
+        } catch (Exception ex) {
+            log.error("register pipeline failed userId={} unexpected={}", created.getUserid(), ex.toString());
+//            accountService.deleteOwnAccount(created.getUserid());
+            throw new NotificationSendException("Verification pipeline failed", ex);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @DeleteMapping("/delete")
-    public ResponseEntity<Void> deleteMyAccount(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+    @DeleteMapping()
+    public ResponseEntity<Void> deleteMyAccount(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 
         String userId = jwtTokenProvider.userIdFromAuthorizationHeader(authorization);
         accountService.deleteOwnAccount(userId);
@@ -85,25 +84,17 @@ public class UserAccountsController {
         return ResponseEntity.noContent().build();
     }
 
+
     private ResponseEntity<Void> redirect(String base, String path, String code) {
-        URI loc = UriComponentsBuilder.fromUriString(base)
-                .path(path)
-                .queryParam("verified", false)
-                .queryParam("error", code)
-                .build(true)
-                .toUri();
+        URI loc = UriComponentsBuilder.fromUriString(base).path(path).queryParam("verified", false).queryParam("error", code).build(true).toUri();
         return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
     }
 
     private ResponseEntity<Void> redirectResend(String base, String path, String code) {
-        URI loc = UriComponentsBuilder.fromUriString(base)
-                .path(path)
-                .queryParam("resent", false)
-                .queryParam("error", code)
-                .build(true)
-                .toUri();
+        URI loc = UriComponentsBuilder.fromUriString(base).path(path).queryParam("resent", false).queryParam("error", code).build(true).toUri();
         return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
     }
 
-    public record ResendRequest(String email) {}
+    public record ResendRequest(String email) {
+    }
 }

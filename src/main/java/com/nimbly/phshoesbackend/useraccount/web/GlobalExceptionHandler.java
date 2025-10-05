@@ -180,6 +180,11 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(404, "Not Found", Map.of("session", List.of("Session not found or already revoked")));
     }
 
+    @ExceptionHandler(NotificationSendException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ErrorResponse handleNotificationSendError(Exception ex) {
+        return new ErrorResponse(500, "Internal Server Error", Map.of("notification", List.of("Failed to send notification")));
+    }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)

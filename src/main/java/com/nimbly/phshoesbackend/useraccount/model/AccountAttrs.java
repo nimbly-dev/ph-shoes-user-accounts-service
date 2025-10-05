@@ -12,6 +12,7 @@ public final class AccountAttrs {
     public static final String IS_VERIFIED    = "isVerified";
     public static final String CREATED_AT     = "createdAt";
     public static final String UPDATED_AT     = "updatedAt";
+    public static final String SETTINGS_JSON = "settings_json";
     public static final String LOGIN_FAIL_COUNT   = "loginFailCount";
     public static final String LOCK_UNTIL         = "lockUntil";
     public static final String LAST_LOGIN_AT      = "lastLoginAt";

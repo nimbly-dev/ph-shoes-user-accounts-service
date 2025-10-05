@@ -44,7 +44,7 @@ public class VerificationController {
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @GetMapping("/")
+    @GetMapping
     public ResponseEntity<Void> verify(@RequestParam("token") String token) {
         final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
         final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";

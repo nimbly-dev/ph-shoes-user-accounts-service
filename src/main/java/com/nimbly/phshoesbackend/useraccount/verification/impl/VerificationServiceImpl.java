@@ -15,6 +15,7 @@ import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationTokenCodec;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,6 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.Update;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
@@ -41,7 +41,7 @@ import java.util.UUID;
 public class VerificationServiceImpl implements VerificationService {
 
     @Autowired
-    private final VerificationRepository repo;
+    private final VerificationRepository verificationRepository;
     private final VerificationTokenCodec codec;
     private final NotificationService notifier;
     private final AppVerificationProps vprops;
@@ -66,7 +66,7 @@ public class VerificationServiceImpl implements VerificationService {
                 .createdAt(Instant.ofEpochSecond(nowSec).toString())
                 .build();
 
-        repo.put(entry);
+        verificationRepository.put(entry);
 
         String token     = codec.encode(verificationId);
         String verifyUrl = vprops.getLinkBaseUrl() + "?token=" + token;
@@ -126,7 +126,7 @@ public class VerificationServiceImpl implements VerificationService {
         }
 
         // Load verification row (consistent read)
-        var opt = repo.getById(verificationId, true);
+        var opt = verificationRepository.getById(verificationId, true);
         var v = opt.orElseThrow(() -> new VerificationNotFoundException("id=" + verificationId));
 
         final long nowSec = Instant.now().getEpochSecond();
@@ -188,7 +188,7 @@ public class VerificationServiceImpl implements VerificationService {
     @Override
     public ResolvedEmail resolveEmailForToken(String token) {
         String id = codec.decodeAndVerify(token);
-        var v = repo.getById(id, true).orElseThrow(() -> new VerificationNotFoundException("id=" + id));
+        var v = verificationRepository.getById(id, true).orElseThrow(() -> new VerificationNotFoundException("id=" + id));
         return new ResolvedEmail(id, v.getUserId(), Optional.ofNullable(v.getEmailPlain()).orElseThrow(
                 () -> new VerificationNotFoundException("email_missing")));
     }

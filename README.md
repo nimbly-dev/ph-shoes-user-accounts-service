@@ -3,7 +3,7 @@
 Spring Boot microservice for **account creation** with **email verification**.
 Local dev uses **LocalStack (DynamoDB)** and a local **inbox (MailHog)**.
 
-## 🚀 Run (Dev)
+##  Run (Dev)
 
 ```bash
 git clone <repo-url>
@@ -36,7 +36,7 @@ Base path: `/api/v1/user-accounts`
 
 > In dev, emails are captured by **MailHog** (open the UI to see the message + link).
 
-## 🐳 Dev Images & Ports
+## Dev Images & Ports
 
 | Service           | Image                          | Ports (host) |
 | ----------------- | ------------------------------ | ------------ |
