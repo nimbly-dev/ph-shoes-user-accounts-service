@@ -11,7 +11,7 @@ app:
     verify-path: "/"
   dynamo:
     tables:
-      email_suppression: email_suppression
+      email_suppression: email_suppressions
 
 spring:
   application:

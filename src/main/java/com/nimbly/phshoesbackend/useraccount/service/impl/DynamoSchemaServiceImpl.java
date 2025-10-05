@@ -2,6 +2,9 @@ package com.nimbly.phshoesbackend.useraccount.service.impl;
 
 import com.nimbly.phshoesbackend.useraccount.config.DynamoConfigTables;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppTagProps;
+import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
+import com.nimbly.phshoesbackend.useraccount.model.SuppressionAttrs;
+import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
 import com.nimbly.phshoesbackend.useraccount.service.DynamoSchemaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +14,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 import software.amazon.awssdk.services.dynamodb.waiters.DynamoDbWaiter;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,9 +40,76 @@ public class DynamoSchemaServiceImpl implements DynamoSchemaService {
         // ensureVerificationTable();
     }
 
+
+    @Override
+    public int backfillAccountSettingsDefault(int maxUpdates) {
+        final String defaultJson = """
+            {"Notification_Email_Preferences":{"Email_Notifications":true}}
+            """;
+
+        int updated = 0;
+        Map<String, AttributeValue> startKey = null;
+
+        do {
+            ScanRequest.Builder sb = ScanRequest.builder()
+                    .tableName(AccountAttrs.TABLE)
+                    .projectionExpression("#id, #s")
+                    .filterExpression("attribute_not_exists(#s)")
+                    .expressionAttributeNames(Map.of("#id", AccountAttrs.PK_USERID, "#s", AccountAttrs.SETTINGS_JSON))
+                    .limit(Math.min(100, Math.max(1, maxUpdates - updated)));
+
+            if (startKey != null) sb.exclusiveStartKey(startKey);
+            ScanResponse scan = ddb.scan(sb.build());
+
+            for (var item : scan.items()) {
+                String userId = item.get(AccountAttrs.PK_USERID).s();
+                try {
+                    ddb.updateItem(UpdateItemRequest.builder()
+                            .tableName(AccountAttrs.TABLE)
+                            .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
+                            .conditionExpression("attribute_not_exists(#s)")
+                            .updateExpression("SET #s = :json, #u = :now")
+                            .expressionAttributeNames(Map.of(
+                                    "#s", AccountAttrs.SETTINGS_JSON,
+                                    "#u", AccountAttrs.UPDATED_AT
+                            ))
+                            .expressionAttributeValues(Map.of(
+                                    ":json", AttributeValue.builder().s(defaultJson).build(),
+                                    ":now",  AttributeValue.builder().s(Instant.now().toString()).build()
+                            ))
+                            .build());
+                    updated++;
+                    if (updated >= maxUpdates) break;
+                } catch (ConditionalCheckFailedException ignored) {
+                    // someone wrote settings concurrently, ignore
+                }
+            }
+
+            startKey = scan.lastEvaluatedKey();
+        } while (startKey != null && !startKey.isEmpty() && updated < maxUpdates);
+
+        if (updated > 0) {
+            log.info("Account settings backfill wrote {} items (cap={})", updated, maxUpdates);
+        } else {
+            log.info("Account settings backfill: nothing to do");
+        }
+        return updated;
+    }
+
+    private void waitForActive(String table) {
+        for (int i = 0; i < 30; i++) {
+            try {
+                var desc = ddb.describeTable(DescribeTableRequest.builder().tableName(table).build());
+                if (desc.table().tableStatus() == TableStatus.ACTIVE) return;
+                Thread.sleep(1000);
+            } catch (Exception ignored) {}
+        }
+        log.warn("Timed out waiting for table ACTIVE: {}", table);
+    }
+
     @Override
     public void ensureVerificationTable() {
-        final String table = "account_verifications";
+        final String table = VerificationAttrs.TABLE;
         try {
             ddb.describeTable(DescribeTableRequest.builder().tableName(table).build());
             log.info("DynamoDB table {} already exists", table);
@@ -117,24 +188,43 @@ public class DynamoSchemaServiceImpl implements DynamoSchemaService {
 
     @Override
     public void ensureSuppressionTable() {
-        String name = tables.suppressionsTableName();
-        var existing = ddb.listTables().tableNames();
-        if (!existing.contains(name)) {
+        ListTablesResponse tables = ddb.listTables();
+        if (!tables.tableNames().contains(SuppressionAttrs.TABLE)) {
+            log.info("Creating suppression table={}", SuppressionAttrs.TABLE);
             ddb.createTable(CreateTableRequest.builder()
-                    .tableName(name)
+                    .tableName(SuppressionAttrs.TABLE)
                     .attributeDefinitions(AttributeDefinition.builder()
-                            .attributeName("email").attributeType(ScalarAttributeType.S).build())
+                            .attributeName(SuppressionAttrs.PK_EMAIL).attributeType(ScalarAttributeType.S).build())
                     .keySchema(KeySchemaElement.builder()
-                            .attributeName("email").keyType(KeyType.HASH).build())
+                            .attributeName(SuppressionAttrs.PK_EMAIL).keyType(KeyType.HASH).build())
                     .billingMode(BillingMode.PAY_PER_REQUEST)
                     .build());
+            waitForActive(SuppressionAttrs.TABLE);
+        }
 
-            // Enable TTL on expiresAt (optional)
-            ddb.updateTimeToLive(UpdateTimeToLiveRequest.builder()
-                    .tableName(name)
-                    .timeToLiveSpecification(TimeToLiveSpecification.builder()
-                            .attributeName("expiresAt").enabled(true).build())
-                    .build());
+        // enable TTL
+        try {
+            DescribeTimeToLiveResponse ttl = ddb.describeTimeToLive(
+                    DescribeTimeToLiveRequest.builder().tableName(SuppressionAttrs.TABLE).build());
+
+            TimeToLiveStatus status = ttl.timeToLiveDescription() == null
+                    ? TimeToLiveStatus.DISABLED
+                    : ttl.timeToLiveDescription().timeToLiveStatus();
+
+            if (status == TimeToLiveStatus.DISABLED) {
+                ddb.updateTimeToLive(UpdateTimeToLiveRequest.builder()
+                        .tableName(SuppressionAttrs.TABLE)
+                        .timeToLiveSpecification(TimeToLiveSpecification.builder()
+                                .attributeName(SuppressionAttrs.EXPIRES_AT)
+                                .enabled(true)
+                                .build())
+                        .build());
+                log.info("TTL enabled on table={} attr={}", SuppressionAttrs.TABLE, SuppressionAttrs.EXPIRES_AT);
+            } else {
+                log.info("TTL already {} on table={}", status.toString(), SuppressionAttrs.TABLE);
+            }
+        } catch (ResourceNotFoundException e) {
+            log.warn("Suppression table not found when enabling TTL: {}", SuppressionAttrs.TABLE);
         }
     }
 
