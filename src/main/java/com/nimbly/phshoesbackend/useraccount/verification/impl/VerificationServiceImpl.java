@@ -1,34 +1,38 @@
 package com.nimbly.phshoesbackend.useraccount.verification.impl;
 
+import com.nimbly.phshoesbackend.notification.core.model.dto.EmailAddress;
+import com.nimbly.phshoesbackend.notification.core.model.dto.EmailRequest;
+import com.nimbly.phshoesbackend.notification.core.model.dto.SendResult;
+import com.nimbly.phshoesbackend.notification.core.service.NotificationService;
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.AccountAttrs;
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.VerificationAttrs;
+import com.nimbly.phshoesbackend.services.common.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
-import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.ResolvedEmail;
-import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
-import com.nimbly.phshoesbackend.useraccount.model.VerificationEntry;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
-import com.nimbly.phshoesbackend.useraccount.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
-import com.nimbly.phshoesbackend.useraccount.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationTokenCodec;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.Update;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
@@ -40,41 +44,113 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VerificationServiceImpl implements VerificationService {
 
-    @Autowired
     private final VerificationRepository verificationRepository;
     private final VerificationTokenCodec codec;
-    private final NotificationService notifier;
+    private final NotificationService notificationService;
     private final AppVerificationProps vprops;
-
     private final DynamoDbClient ddb;
     private final BCryptPasswordEncoder passwordEncoder;
 
-    @Override
-    public String create(String userId, String emailRaw, String emailNorm) {
-        long nowSec  = Instant.now().getEpochSecond();
-        long expires = nowSec + vprops.getTtlSeconds();
 
-        String verificationId = UUID.randomUUID().toString();
+    private static String required(String name, String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Missing required property: " + name);
+        }
+        return value;
+    }
 
-        var entry = VerificationEntry.builder()
-                .verificationId(verificationId)
-                .userId(userId)
-                .emailPlain(emailNorm)
-                .emailHash(HashingUtil.sha256Hex(emailNorm))
-                .status("PENDING")
-                .expiresAt(expires)
-                .createdAt(Instant.ofEpochSecond(nowSec).toString())
-                .build();
+    private String lookupUserIdByEmail(String emailRaw) {
+        final String emailNorm = emailRaw == null ? "" : emailRaw.trim().toLowerCase(Locale.ROOT);
+        final String emailHash = HashingUtil.sha256Hex(emailNorm);
 
-        verificationRepository.put(entry);
+        var q = ddb.query(QueryRequest.builder()
+                .tableName(AccountAttrs.TABLE)
+                .indexName(AccountAttrs.GSI_EMAIL)
+                .keyConditionExpression("#e = :eh")
+                .expressionAttributeNames(Map.of("#e", AccountAttrs.EMAIL_HASH))
+                .expressionAttributeValues(Map.of(":eh", AttributeValue.builder().s(emailHash).build()))
+                .limit(1)
+                .build());
 
-        String token     = codec.encode(verificationId);
-        String verifyUrl = vprops.getLinkBaseUrl() + "?token=" + token;
-        String notMeUrl  = vprops.getLinkBaseUrl().replace("/verify", "/verify/not-me") + "?token=" + token;
+        if (!q.hasItems() || q.items().isEmpty()) {
+            throw new VerificationNotFoundException("email");
+        }
+        return q.items().get(0).get(AccountAttrs.PK_USERID).s();
+    }
 
-        notifier.sendEmailVerification(emailRaw, verifyUrl, notMeUrl);
-        log.info("verification.created userId={} verificationId={} ttlSec={}", userId, verificationId, vprops.getTtlSeconds());
+    private String createVerification(String userId, String emailPlain, long ttlSeconds) {
+        final long nowSec = Instant.now().getEpochSecond();
+        final long expiresAt = nowSec + ttlSeconds;
+        final String verificationId = UUID.randomUUID().toString();
+
+        Map<String, AttributeValue> item = Map.of(
+                VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(verificationId).build(),
+                VerificationAttrs.USER_ID, AttributeValue.builder().s(userId).build(),
+                VerificationAttrs.EMAIL_PLAIN, AttributeValue.builder().s(emailPlain).build(),
+                VerificationAttrs.STATUS, AttributeValue.builder().s("PENDING").build(),
+                VerificationAttrs.CREATED_AT, AttributeValue.builder().s(Instant.ofEpochSecond(nowSec).toString()).build(),
+                VerificationAttrs.EXPIRES_AT, AttributeValue.builder().n(Long.toString(expiresAt)).build()
+        );
+
+        ddb.putItem(PutItemRequest.builder()
+                .tableName(VerificationAttrs.TABLE)
+                .item(item)
+                .build());
+
         return verificationId;
+    }
+
+    @Override
+    public void sendVerificationEmail(String recipientEmail) {
+        try {
+            final String userId = lookupUserIdByEmail(recipientEmail);
+
+            final long ttl = Optional.ofNullable(vprops.getTtlSeconds()).map(Long::valueOf).orElse(900L);
+            final String verificationId = createVerification(userId, recipientEmail, ttl);
+            final String token = codec.encode(verificationId);
+
+            final String verifyBase = required("verification.verificationLink", vprops.getVerificationLink());
+            final String notMeBase = required("verification.notMeLink", vprops.getNotMeLink());
+
+            log.info("vprops linkbaseurl: {}", verifyBase);
+            log.info("vprops notmebaseurl: {}", notMeBase);
+
+            String verifyUrl = UriComponentsBuilder.fromHttpUrl(verifyBase)
+                    .queryParam("token", token)
+                    .build(true)
+                    .toUriString();
+
+            String notMeUrl = UriComponentsBuilder.fromHttpUrl(notMeBase)
+                    .queryParam("token", token)
+                    .build(true)
+                    .toUriString();
+
+            String template = new String(
+                    new ClassPathResource("email/verification.html")
+                            .getInputStream()
+                            .readAllBytes(),
+                    StandardCharsets.UTF_8
+            );
+
+            String html = template
+                    .replace("{{VERIFY_URL}}", verifyUrl)
+                    .replace("{{NOT_ME_URL}}", notMeUrl);
+
+            EmailRequest email = EmailRequest.builder()
+                    .from(EmailAddress.builder().address("no-reply@phshoes.local").build())
+                    .to(EmailAddress.builder().address(recipientEmail).build())
+                    .subject("Verify your PH Shoes Account")
+                    .htmlBody(html)
+                    .textBody("Verify your account: " + verifyUrl)
+                    .build();
+
+            SendResult result = notificationService.sendEmailVerification(email);
+            log.info("Verification email sent to {} via {} messageId={}",
+                    recipientEmail, result.getProvider(), result.getMessageId());
+
+        } catch (Exception e) {
+            log.error("Failed to send verification email to {}", recipientEmail, e);
+        }
     }
 
     @Override
@@ -82,7 +158,6 @@ public class VerificationServiceImpl implements VerificationService {
         final String emailNorm = emailRaw == null ? "" : emailRaw.trim().toLowerCase(Locale.ROOT);
         final String emailHash = HashingUtil.sha256Hex(emailNorm);
 
-        // Find account by email hash (GSI)
         var q = ddb.query(QueryRequest.builder()
                 .tableName(AccountAttrs.TABLE)
                 .indexName(AccountAttrs.GSI_EMAIL)
@@ -97,7 +172,6 @@ public class VerificationServiceImpl implements VerificationService {
         }
         String userId = q.items().get(0).get(AccountAttrs.PK_USERID).s();
 
-        // Check if already verified
         var acc = ddb.getItem(GetItemRequest.builder()
                 .tableName(AccountAttrs.TABLE)
                 .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
@@ -106,12 +180,11 @@ public class VerificationServiceImpl implements VerificationService {
         if (acc.hasItem()
                 && acc.item().containsKey(AccountAttrs.IS_VERIFIED)
                 && Boolean.TRUE.equals(acc.item().get(AccountAttrs.IS_VERIFIED).bool())) {
-            // reuse existing exception type to signal "cannot resend"
             throw new VerificationAlreadyUsedException("already_verified");
         }
 
-        // Issue a new verification (controller orchestrates; we do the work)
-        create(userId, emailRaw, emailNorm);
+        // Issue a new verification by reusing the normal flow
+        sendVerificationEmail(emailNorm);
     }
 
     @Override
@@ -125,15 +198,30 @@ public class VerificationServiceImpl implements VerificationService {
             throw new InvalidVerificationTokenException("Signature or format invalid");
         }
 
-        // Load verification row (consistent read)
-        var opt = verificationRepository.getById(verificationId, true);
-        var v = opt.orElseThrow(() -> new VerificationNotFoundException("id=" + verificationId));
+        log.info("decoded token -> verificationId={}", verificationId);
+
+        var get = ddb.getItem(GetItemRequest.builder()
+                .tableName(VerificationAttrs.TABLE)
+                .key(Map.of(
+                        VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(verificationId).build()
+                ))
+                .consistentRead(true)
+                .build());
+
+        if (!get.hasItem() || get.item().isEmpty()) {
+            throw new VerificationNotFoundException("id=" + verificationId);
+        }
+        var item = get.item();
+
+        String userId      = item.getOrDefault(VerificationAttrs.USER_ID, AttributeValue.builder().s("").build()).s();
+        String emailPlain  = Optional.ofNullable(item.get(VerificationAttrs.EMAIL_PLAIN)).map(AttributeValue::s).orElse("");
+        String status      = Optional.ofNullable(item.get(VerificationAttrs.STATUS)).map(AttributeValue::s).orElse("PENDING");
+        long   expiresAt   = Optional.ofNullable(item.get(VerificationAttrs.EXPIRES_AT)).map(AttributeValue::n).map(Long::parseLong).orElse(0L);
 
         final long nowSec = Instant.now().getEpochSecond();
-        if (v.isExpired(nowSec)) throw new VerificationExpiredException("verificationId=" + verificationId);
-        if (!v.isPending()) throw new VerificationAlreadyUsedException("status=" + v.getStatus());
+        if (expiresAt <= nowSec) throw new VerificationExpiredException("verificationId=" + verificationId);
+        if (!"PENDING".equals(status)) throw new VerificationAlreadyUsedException("status=" + status);
 
-        // Transaction: mark account verified + mark verification USED
         final String nowIso = Instant.now().toString();
         Map<String, AttributeValue> vkey = Map.of(
                 VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(verificationId).build()
@@ -143,7 +231,7 @@ public class VerificationServiceImpl implements VerificationService {
                 .transactItems(
                         TransactWriteItem.builder().update(Update.builder()
                                 .tableName(AccountAttrs.TABLE)
-                                .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(v.getUserId()).build()))
+                                .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
                                 .updateExpression("SET #v = :true, #u = :now")
                                 .expressionAttributeNames(Map.of("#v", AccountAttrs.IS_VERIFIED, "#u", AccountAttrs.UPDATED_AT))
                                 .expressionAttributeValues(Map.of(
@@ -170,26 +258,51 @@ public class VerificationServiceImpl implements VerificationService {
                                 .build()).build()
                 ).build());
 
-        // Read account for createdAt (and optionally email, if you decide to store it there)
+        // --- 3) Read account for createdAt (optional)
         var acc = ddb.getItem(GetItemRequest.builder()
                 .tableName(AccountAttrs.TABLE)
-                .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(v.getUserId()).build()))
+                .key(Map.of(AccountAttrs.PK_USERID, AttributeValue.builder().s(userId).build()))
                 .build()).item();
 
         return AccountResponse.builder()
-                .userid(v.getUserId())
-                .email(Optional.ofNullable(v.getEmailPlain()).orElse(""))
+                .userid(userId)
+                .email(Optional.ofNullable(emailPlain).orElse(""))
                 .isVerified(true)
                 .createdAt(acc.get(AccountAttrs.CREATED_AT).s())
                 .updatedAt(nowIso)
                 .build();
     }
 
+
     @Override
     public ResolvedEmail resolveEmailForToken(String token) {
-        String id = codec.decodeAndVerify(token);
-        var v = verificationRepository.getById(id, true).orElseThrow(() -> new VerificationNotFoundException("id=" + id));
-        return new ResolvedEmail(id, v.getUserId(), Optional.ofNullable(v.getEmailPlain()).orElseThrow(
-                () -> new VerificationNotFoundException("email_missing")));
+        final String id = codec.decodeAndVerify(token);
+
+        var get = ddb.getItem(GetItemRequest.builder()
+                .tableName(VerificationAttrs.TABLE)
+                .key(Map.of(VerificationAttrs.PK_VERIFICATION_ID, AttributeValue.builder().s(id).build()))
+                .consistentRead(true)
+                .build());
+
+        var item = get.item();
+        if (item == null || item.isEmpty()) {
+            throw new VerificationNotFoundException("id=" + id);
+        }
+
+        // SAFE reads
+        String userId = Optional.ofNullable(item.get(VerificationAttrs.USER_ID))
+                .map(AttributeValue::s).orElse(null);
+
+        String emailPlain = Optional.ofNullable(item.get(VerificationAttrs.EMAIL_PLAIN))
+                .map(AttributeValue::s).orElse(null);
+
+        if (emailPlain == null || emailPlain.isBlank()) {
+            throw new VerificationNotFoundException("email_missing");
+        }
+        if (userId == null || userId.isBlank()) {
+            throw new VerificationNotFoundException("user_missing");
+        }
+
+        return new ResolvedEmail(id, userId, emailPlain);
     }
 }

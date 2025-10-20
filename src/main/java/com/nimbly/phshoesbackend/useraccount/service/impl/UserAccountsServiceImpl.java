@@ -1,13 +1,13 @@
 package com.nimbly.phshoesbackend.useraccount.service.impl;
 
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.AccountAttrs;
+import com.nimbly.phshoesbackend.services.common.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.exception.EmailAlreadyRegisteredException;
-import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
-import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.security.HashingUtil;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
 import lombok.RequiredArgsConstructor;

@@ -41,16 +41,22 @@ logging:
   level:
     root: INFO
 
-# Prod: use SES (no AWS endpoint override)
-notify:
-  provider: ses
+notification:
+  transport: sesv2
   email:
     from: "PH Shoes <no-reply@phshoesproject.com>"
     subjectPrefix: "[PH-Shoes]"
+    listUnsubscribe: "<mailto:unsubscribe@phshoesproject.com>, <https://phshoesproject.com/unsubscribe>"
+    listUnsubscribePost: "List-Unsubscribe=One-Click"
+
+  ses:
+    region: ${AWS_REGION:ap-southeast-1}
+    endpoint:
+    configurationSet: ${SES_CONFIGURATION_SET:}
 
 aws:
   region: ap-southeast-1
-  endpoint:            # leave blank in prod
+  endpoint:
 
 verification:
   ttlSeconds: 900

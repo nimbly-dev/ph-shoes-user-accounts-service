@@ -1,8 +1,8 @@
 package com.nimbly.phshoesbackend.useraccount.service.impl;
 
-import com.nimbly.phshoesbackend.useraccount.model.SuppressionEntry;
-import com.nimbly.phshoesbackend.useraccount.model.SuppressionReason;
-import com.nimbly.phshoesbackend.useraccount.repository.SuppressionRepository;
+import com.nimbly.phshoesbackend.services.common.core.model.SuppressionEntry;
+import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
+import com.nimbly.phshoesbackend.services.common.core.repository.SuppressionRepository;
 import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

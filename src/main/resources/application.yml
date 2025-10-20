@@ -1,6 +1,6 @@
 app:
   cors:
-    allowed-origins: []        # default: nothing
+    allowed-origins: []
     allowed-methods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
     allowed-headers: [Authorization,Content-Type]
     exposed-headers: [Authorization,Content-Type]
@@ -27,20 +27,28 @@ spring:
   devtools:
     restart:
       enabled: false
+
 aws:
   region: ap-southeast-1
-  endpoint: ${AWS_ENDPOINT:}
+  endpoint: ${AWS_ENDPOINT:}   # empty = real AWS; override in dev for LocalStack
 
-notify:
-  provider: ses
+notification:
+  transport: sesv2
   email:
     from: "PH Shoes <no-reply@ph-shoes.app>"
     subjectPrefix: "[PH-Shoes]"
+    listUnsubscribe: "<mailto:unsubscribe@ph-shoes.app>, <https://phshoesproject.com/unsubscribe>"
+    listUnsubscribePost: "List-Unsubscribe=One-Click"
+  ses:
+    region: ${AWS_REGION:ap-southeast-1}
+    endpoint: ${aws.endpoint}
+    configurationSet:
 
 verification:
   ttlSeconds: 900
   secret: ${VERIFICATION_SECRET:dev-secret-change-me}
-  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:http://localhost:8082/api/v1/verify}
+  verificationLink: ${VERIFICATION_LINK_BASE_URL:http://localhost:8082/api/v1/verify}
+  notMeLink: ${VERIFICATION_LINK_BASE_URL:http://localhost:8082/api/v1/verify/not-me}
 
 server:
   port: ${PORT:8082}

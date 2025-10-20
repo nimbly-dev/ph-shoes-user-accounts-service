@@ -11,6 +11,8 @@ cd <repo-folder>
 
 # start local infra + service
 docker compose -f docker-compose.dev.yml up -d --build
+# Don't rebuild all
+docker compose -f docker-compose.dev.yml up -d 
 ```
 
 * Service: [http://localhost:8080](http://localhost:8080)

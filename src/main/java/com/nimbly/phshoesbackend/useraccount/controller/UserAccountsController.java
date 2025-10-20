@@ -1,9 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
-import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.exception.*;
-import com.nimbly.phshoesbackend.useraccount.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
@@ -18,12 +16,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -61,15 +57,14 @@ public class UserAccountsController {
         AccountResponse created = accountService.register(body);
         try {
             log.info("created user with id {}", created.getUserid());
-            verificationService.create(created.getUserid(), body.getEmail().trim(), body.getEmail().trim().toLowerCase());
+            verificationService.sendVerificationEmail(created.getEmail());
         } catch (NotificationSendException ex) {
             log.warn("verification.send failed userId={} msg={}", created.getUserid(), ex.toString());
-//            accountService.deleteOwnAccount(created.getUserid());
             throw ex;
 
         } catch (Exception ex) {
             log.error("register pipeline failed userId={} unexpected={}", created.getUserid(), ex.toString());
-//            accountService.deleteOwnAccount(created.getUserid());
+            accountService.deleteOwnAccount(created.getUserid());
             throw new NotificationSendException("Verification pipeline failed", ex);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(created);

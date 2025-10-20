@@ -1,10 +1,10 @@
 package com.nimbly.phshoesbackend.useraccount.service.impl;
 
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.AccountAttrs;
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.SuppressionAttrs;
+import com.nimbly.phshoesbackend.services.common.core.model.dynamo.VerificationAttrs;
 import com.nimbly.phshoesbackend.useraccount.config.DynamoConfigTables;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppTagProps;
-import com.nimbly.phshoesbackend.useraccount.model.AccountAttrs;
-import com.nimbly.phshoesbackend.useraccount.model.SuppressionAttrs;
-import com.nimbly.phshoesbackend.useraccount.model.VerificationAttrs;
 import com.nimbly.phshoesbackend.useraccount.service.DynamoSchemaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

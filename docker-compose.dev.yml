@@ -4,14 +4,24 @@ services:
   localstack:
     image: localstack/localstack:latest
     container_name: localstack
-    ports:
-      - "4566:4566"                       # AWS edge
     environment:
-      - SERVICES=dynamodb
-      - DEBUG=1
+      - SERVICES=ses,sesv2,dynamodb,sns,sqs,sts
       - AWS_DEFAULT_REGION=ap-southeast-1
+      - DEBUG=1
+    ports:
+      - "4566:4566"
     volumes:
-      - localstack_data:/var/lib/localstack
+      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "awslocal --version >/dev/null 2>&1 || pip install awscli-local -q; awslocal sts get-caller-identity >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      devnet:
+        aliases:
+          - localstack
 
   dynamodb-admin:
     image: aaronshaf/dynamodb-admin:latest
@@ -24,9 +34,11 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
     depends_on:
-      - localstack
+      localstack:
+        condition: service_healthy
+    networks:
+      - devnet
 
-  # Your Spring Boot app (now has creds + endpoint + dev profile)
   account-service:
     build:
       context: .
@@ -35,24 +47,40 @@ services:
     ports:
       - "8082:8082"
     environment:
+      GH_ACTOR: ${GH_ACTOR}
+      GH_PACKAGES_TOKEN: ${GH_PACKAGES_TOKEN}
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
       SPRING_PROFILES_ACTIVE: dev
-      # AWS SDK v2 picks these up for LocalStack (any non-empty values work)
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: ap-southeast-1
-      # Your AppAwsProps likely reads this (and we also default it in application-dev.yml)
       AWS_ENDPOINT: http://localstack:4566
+    volumes:
+      - "${USERPROFILE}/.m2/settings.xml:/root/.m2/settings.xml:ro"
+    command: mvn -U -Pdev spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.fork=false
     depends_on:
-      - localstack
-      - mailhog
+      localstack:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - devnet
 
-  # Dev SMTP server with web UI
   mailhog:
     image: mailhog/mailhog:latest
     container_name: mailhog
     ports:
       - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI at http://localhost:8025
+      - "8025:8025"   # http://localhost:8025
+    networks:
+      - devnet
+    depends_on:
+      localstack:
+        condition: service_healthy
+
+networks:
+  devnet: {}
 
 volumes:
-  localstack_data:
+  localstack-data: {}

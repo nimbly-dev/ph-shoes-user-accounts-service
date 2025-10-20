@@ -1,40 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
 	<modelVersion>4.0.0</modelVersion>
+
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.5.5</version>
-		<relativePath/> <!-- lookup parent from repository -->
+		<relativePath/>
 	</parent>
+
 	<groupId>com.nimbly.phshoesbackend.useraccount</groupId>
 	<artifactId>ph-shoes-user-account-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>ph-shoes-user-account-service</name>
-	<description>Demo project for Spring Boot</description>
-	<url/>
+
 	<properties>
 		<java.version>21</java.version>
 		<aws.sdk.version>2.33.1</aws.sdk.version>
+
+		<!-- Internal artifacts -->
+		<notification.service.api.version>0.0.1-SNAPSHOT</notification.service.api.version>
+		<common.service.api.version>0.0.1-SNAPSHOT</common.service.api.version>
 	</properties>
+
 	<dependencies>
+		<!-- Spring Boot basics -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-configuration-processor</artifactId>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-core</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-crypto</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -42,24 +38,74 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-mail</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-devtools</artifactId>-->
-<!--			<scope>runtime</scope>-->
-<!--			<optional>true</optional>-->
-<!--		</dependency>-->
+
+		<!-- Configuration metadata (optional but handy) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
 			<optional>true</optional>
 		</dependency>
 
+		<!-- Devtools (runtime only; ignored in prod containers unless enabled) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
+
+		<!-- AWS SDKs used by THIS service (DynamoDB etc.). SES is provided by SES profile only. -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>dynamodb</artifactId>
+			<version>${aws.sdk.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>dynamodb-enhanced</artifactId>
+			<version>${aws.sdk.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>apache-client</artifactId>
+			<version>${aws.sdk.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>sesv2</artifactId>
+			<version>${aws.sdk.version}</version>
+		</dependency>
+
+		<!-- JWT -->
+		<dependency>
+			<groupId>com.auth0</groupId>
+			<artifactId>java-jwt</artifactId>
+			<version>4.5.0</version>
+		</dependency>
+
+		<!-- Notification Core (business service + composition) -->
+		<dependency>
+			<groupId>com.nimbly.phshoesbackend.notification</groupId>
+			<artifactId>ph-shoes-notification-service-core</artifactId>
+			<version>${notification.service.api.version}</version>
+		</dependency>
+
+		<!-- Commons -->
+		<dependency>
+			<groupId>com.nimbly.phshoesbackend.commons</groupId>
+			<artifactId>ph-shoes-services-common-core</artifactId>
+			<version>${common.service.api.version}</version>
+		</dependency>
+
+		<!-- Lombok + tests -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -70,52 +116,54 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
-		<!-- AWS dependencies -->
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>dynamodb</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>sesv2</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>apache-client</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>dynamodb-enhanced</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-
-
-		<!-- Jakarta Dependencies -->
-		<dependency>
-			<groupId>jakarta.validation</groupId>
-			<artifactId>jakarta.validation-api</artifactId>
-			<version>3.1.1</version>
-		</dependency>
-
-		<!-- Third party libs -->
-		<dependency>
-			<groupId>com.auth0</groupId>
-			<artifactId>java-jwt</artifactId>
-			<version>4.5.0</version>
-		</dependency>
-
-
-		<!-- Test -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
+
+	<!-- Provider selection via Maven profiles.
+         Activation strategy:
+         - Pass -Pdev or -Pprod explicitly, OR
+         - Set env var SPRING_PROFILES_ACTIVE=dev/prod (as in docker-compose) -->
+	<profiles>
+		<profile>
+			<id>dev</id>
+			<activation>
+				<property>
+					<name>env.SPRING_PROFILES_ACTIVE</name>
+					<value>dev</value>
+				</property>
+			</activation>
+			<dependencies>
+				<!-- SMTP transport for MailHog -->
+				<dependency>
+					<groupId>com.nimbly.phshoesbackend.notification</groupId>
+					<artifactId>ph-shoes-notification-providers-email-smtp-mailhog</artifactId>
+					<version>${notification.service.api.version}</version>
+				</dependency>
+				<!-- JavaMail sender used by SMTP transport (safe to keep in dev only) -->
+				<dependency>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-mail</artifactId>
+				</dependency>
+			</dependencies>
+		</profile>
+
+		<profile>
+			<id>prod</id>
+			<activation>
+				<property>
+					<name>env.SPRING_PROFILES_ACTIVE</name>
+					<value>prod</value>
+				</property>
+			</activation>
+			<dependencies>
+				<!-- SESv2 transport for real AWS -->
+				<dependency>
+					<groupId>com.nimbly.phshoesbackend.notification</groupId>
+					<artifactId>ph-shoes-notification-providers-email-ses</artifactId>
+					<version>${notification.service.api.version}</version>
+				</dependency>
+			</dependencies>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
@@ -123,14 +171,21 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
 						</path>
+						<path>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-configuration-processor</artifactId>
+						</path>
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -145,5 +200,20 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<repositories>
+		<repository>
+			<id>github-nimbly-notification</id>
+			<url>https://maven.pkg.github.com/nimbly-dev/ph-shoes-notification-service</url>
+			<releases><enabled>true</enabled></releases>
+			<snapshots><enabled>true</enabled></snapshots>
+		</repository>
+		<repository>
+			<id>github-nimbly-commons</id>
+			<url>https://maven.pkg.github.com/nimbly-dev/ph-shoes-services-common</url>
+			<releases><enabled>true</enabled></releases>
+			<snapshots><enabled>true</enabled></snapshots>
+		</repository>
+	</repositories>
 
 </project>

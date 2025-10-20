@@ -2,8 +2,8 @@ package com.nimbly.phshoesbackend.useraccount.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbly.phshoesbackend.services.common.core.repository.AccountSettingsRepository;
 import com.nimbly.phshoesbackend.useraccount.exception.AccountNotFoundException;
-import com.nimbly.phshoesbackend.useraccount.repository.AccountSettingsRepository;
 import com.nimbly.phshoesbackend.useraccount.service.AccountSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

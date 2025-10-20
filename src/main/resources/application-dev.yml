@@ -3,13 +3,16 @@ app:
     allowed-origins:
       - "http://localhost:5173"
       - "http://127.0.0.1:5173"
-    frontend:
-      base-url: "http://localhost:5173"
-      verify-path: "/"
+  frontend:
+    base-url: "http://localhost:5173"
+    verify-path: "/"
 
-# When the app runs **inside compose**, it must call LocalStack by container name, not localhost
+feature:
+  suppressionCheckEnabled: true
+
 aws:
-  endpoint: ${AWS_ENDPOINT:http://localstack:4566}
+  region: ap-southeast-1
+  endpoint: ${AWS_ENDPOINT:http://localhost:4566}  # <— FIX: localhost default
 
 spring:
   application:
@@ -17,50 +20,49 @@ spring:
   mvc:
     problemdetails:
       enabled: false
-
-  mail:
-    # App is inside compose → use the service name
-    host: mailhog
-    port: 1025
-    properties:
-      mail.smtp.auth: false
-      mail.smtp.starttls.enable: false
-      mail.smtp.connectiontimeout: 2000
-      mail.smtp.timeout: 2000
-      mail.smtp.writetimeout: 2000
-    # Avoid boot failure if SMTP is momentarily unreachable
-    test-connection: false
+  devtools:
+    restart:
+      enabled: true
 
 server:
   error:
     include-stacktrace: never
     include-message: always
 
-
 jwt:
   issuer: ph-shoes
   secret: change-me-dev-only
-  accessTtlSeconds: 3600       # 60 minutes
+  accessTtlSeconds: 3600
 
 auth:
   lock:
-    maxFailures: 5             # after 5 wrong tries
-    durationSeconds: 900       # lock for 15 minutes
+    maxFailures: 5
+    durationSeconds: 900
 
 logging:
   level:
     root: INFO
 
-notify:
-  provider: smtp
+notification:
+  transport: smtp
+  smtp:
+    host: mailhog
+    port: 1025
+    auth: false
+    starttls: false
+    connectionTimeoutMillis: 2000
+    readTimeoutMillis: 2000
+    writeTimeoutMillis: 2000
   email:
     from: "PH Shoes (DEV) <no-reply@local.test>"
     subjectPrefix: "[PH-Shoes DEV]"
+    listUnsubscribe: "<mailto:unsubscribe@local.test>, <http://localhost:5173/unsubscribe>"
+    listUnsubscribePost: "List-Unsubscribe=One-Click"
 
-# In dev, link straight to backend verify route
 verification:
   ttlSeconds: 900
-  linkBaseUrl: http://localhost:8082/api/v1/verify
+  verificationLink: http://localhost:8082/api/v1/verify
+  notMeLink: http://localhost:8082/api/v1/verify/not-me
 
 schema:
   auto-create: true

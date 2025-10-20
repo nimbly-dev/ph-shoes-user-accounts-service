@@ -1,11 +1,11 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
+import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
-import com.nimbly.phshoesbackend.useraccount.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
 import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
@@ -77,24 +77,26 @@ public class VerificationController {
 
         try {
             // Resolve email (no verification flip)
-            var resolved = verificationService.resolveEmailForToken(token); // implement below
-            // Write suppression (controller orchestrates)
+            var resolved = verificationService.resolveEmailForToken(token);
             suppressionService.suppress(
                     resolved.email(),
                     SuppressionReason.MANUAL,
                     "VERIFY_LINK_NOT_ME_CLICK",
                     "verificationId=" + resolved.verificationId(),
-                    null // optional TTL
+                    null
             );
 
             URI loc = UriComponentsBuilder.fromUriString(base)
                     .path(path).queryParam("not_me", true).build(true).toUri();
             return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
         } catch (InvalidVerificationTokenException e) {
+            log.error(e.getMessage());
             return redirectResend(base, path, "invalid");
         } catch (VerificationNotFoundException e) {
+            log.error(e.getMessage());
             return redirectResend(base, path, "not_found");
         } catch (Exception e) {
+            log.error(e.getMessage());
             return redirectResend(base, path, "unknown");
         }
     }

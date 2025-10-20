@@ -1,5 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.auth.impl;
 
+import com.nimbly.phshoesbackend.services.common.core.model.Account;
+import com.nimbly.phshoesbackend.services.common.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.auth.AuthService;
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.auth.dto.LoginRequest;
@@ -9,8 +11,6 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsEx
 import com.nimbly.phshoesbackend.useraccount.config.props.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.EmailNotVerifiedException;
-import com.nimbly.phshoesbackend.useraccount.model.Account;
-import com.nimbly.phshoesbackend.useraccount.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;

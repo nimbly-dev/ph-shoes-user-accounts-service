@@ -10,5 +10,6 @@ import org.springframework.stereotype.Component;
 public class AppVerificationProps {
     private int ttlSeconds = 900;
     private String secret;
-    private String linkBaseUrl;
+    private String verificationLink;
+    private String notMeLink;
 }

@@ -43,7 +43,7 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers(HttpMethod.GET, "/api/v1/verify**").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/v1/verify/not-me").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/v1/verify/not-me**").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                             .requestMatchers(HttpMethod.POST, "/api/v1/user-accounts").permitAll()
                             .anyRequest().authenticated()
