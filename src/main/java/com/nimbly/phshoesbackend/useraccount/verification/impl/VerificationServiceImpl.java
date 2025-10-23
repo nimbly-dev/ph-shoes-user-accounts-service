@@ -3,6 +3,7 @@ package com.nimbly.phshoesbackend.useraccount.verification.impl;
 import com.nimbly.phshoesbackend.notification.core.model.dto.EmailAddress;
 import com.nimbly.phshoesbackend.notification.core.model.dto.EmailRequest;
 import com.nimbly.phshoesbackend.notification.core.model.dto.SendResult;
+import com.nimbly.phshoesbackend.notification.core.model.props.NotificationEmailProps;
 import com.nimbly.phshoesbackend.notification.core.service.NotificationService;
 import com.nimbly.phshoesbackend.services.common.core.model.dynamo.AccountAttrs;
 import com.nimbly.phshoesbackend.services.common.core.model.dynamo.VerificationAttrs;
@@ -39,6 +40,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static java.lang.String.format;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -48,6 +51,7 @@ public class VerificationServiceImpl implements VerificationService {
     private final VerificationTokenCodec codec;
     private final NotificationService notificationService;
     private final AppVerificationProps vprops;
+    private final NotificationEmailProps emailProps;
     private final DynamoDbClient ddb;
     private final BCryptPasswordEncoder passwordEncoder;
 
@@ -136,12 +140,18 @@ public class VerificationServiceImpl implements VerificationService {
                     .replace("{{VERIFY_URL}}", verifyUrl)
                     .replace("{{NOT_ME_URL}}", notMeUrl);
 
+            EmailAddress from = parseFrom(emailProps.getFrom());
+
             EmailRequest email = EmailRequest.builder()
-                    .from(EmailAddress.builder().address("no-reply@phshoes.local").build())
+                    .from(from)
                     .to(EmailAddress.builder().address(recipientEmail).build())
-                    .subject("Verify your PH Shoes Account")
+                    .subject(format("%s Verify your PH Shoes Account",
+                            opt(emailProps.getSubjectPrefix())))
                     .htmlBody(html)
                     .textBody("Verify your account: " + verifyUrl)
+                    .header("List-Unsubscribe", emailProps.getListUnsubscribe())
+                    .header("List-Unsubscribe-Post", emailProps.getListUnsubscribePost())
+                    .tag("category", "ACCOUNT_VERIFICATION")
                     .build();
 
             SendResult result = notificationService.sendEmailVerification(email);
@@ -304,5 +314,20 @@ public class VerificationServiceImpl implements VerificationService {
         }
 
         return new ResolvedEmail(id, userId, emailPlain);
+    }
+
+    private static String opt(String s) { return (s == null || s.isBlank()) ? "" : s + " "; }
+
+    private static EmailAddress parseFrom(String fromProp) {
+        // Accepts "Name <email@domain>" OR plain "email@domain"
+        String name = null;
+        String address = fromProp;
+        int lt = fromProp.indexOf('<');
+        int gt = fromProp.indexOf('>');
+        if (lt >= 0 && gt > lt) {
+            name = fromProp.substring(0, lt).trim().replaceAll("^\"|\"$", "");
+            address = fromProp.substring(lt + 1, gt).trim();
+        }
+        return EmailAddress.builder().name(name).address(address).build();
     }
 }

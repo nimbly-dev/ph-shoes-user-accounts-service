@@ -8,10 +8,15 @@ services:
       - SERVICES=ses,sesv2,dynamodb,sns,sqs,sts
       - AWS_DEFAULT_REGION=ap-southeast-1
       - DEBUG=1
+      # optional convenience for the script:
+      - TABLE_PREFIX=
+      - SERVICE_NAME=accounts_service
+      - INITIAL_VERSION=0.0.0
     ports:
       - "4566:4566"
     volumes:
       - localstack-data:/var/lib/localstack
+      - ./localstack-init:/etc/localstack/init/ready.d
     healthcheck:
       test: ["CMD", "bash", "-lc", "awslocal --version >/dev/null 2>&1 || pip install awscli-local -q; awslocal sts get-caller-identity >/dev/null 2>&1"]
       interval: 5s
