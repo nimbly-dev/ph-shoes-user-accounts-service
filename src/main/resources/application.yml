@@ -67,3 +67,12 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level traceId=%X{traceId} %logger{36} - %msg%n"
   level:
     root: DEBUG
+
+schema:
+  migrations:
+    enabled: true
+    revertOnError: true
+    bootstrapIfMissing: true
+    initial: 0.0.0
+    tablePrefix: ""
+    serviceName: accounts_service
