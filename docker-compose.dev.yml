@@ -8,7 +8,6 @@ services:
       - SERVICES=ses,sesv2,dynamodb,sns,sqs,sts
       - AWS_DEFAULT_REGION=ap-southeast-1
       - DEBUG=1
-      # optional convenience for the script:
       - TABLE_PREFIX=
       - SERVICE_NAME=accounts_service
       - INITIAL_VERSION=0.0.0
@@ -61,9 +60,18 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: ap-southeast-1
       AWS_ENDPOINT: http://localstack:4566
+      SPRING_DEVTOOLS_RESTART_ADDITIONAL_PATHS: src/main/java,src/main/resources
     volumes:
-      - "${USERPROFILE}/.m2/settings.xml:/root/.m2/settings.xml:ro"
-    command: mvn -U -Pdev spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.fork=false
+      - ./:/app
+      - "${HOME}/.m2/settings.xml:/root/.m2/settings.xml:ro"
+    command: >
+      bash -lc 'set -euo pipefail; 
+        mvn -U -Pdev -DskipTests=true clean generate-sources; 
+        ls -lah target/openapi-filtered; 
+        mvn -U -Pdev -DskipTests=true spring-boot:run 
+          -Dspring-boot.run.profiles=dev 
+          -Dspring-boot.run.fork=false 
+          -Dopenapi.docs.url=http://localhost:8082/v3/api-docs.yaml'
     depends_on:
       localstack:
         condition: service_healthy

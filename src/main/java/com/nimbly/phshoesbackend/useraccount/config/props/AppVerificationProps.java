@@ -12,4 +12,5 @@ public class AppVerificationProps {
     private String secret;
     private String verificationLink;
     private String notMeLink;
+    private String unsubscribeLink;
 }

@@ -1,165 +1,99 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
-import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
-import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
-import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
-import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
-import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
-import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
+import com.nimbly.phshoesbackend.useraccounts.api.VerificationApi;
+import com.nimbly.phshoesbackend.useraccounts.model.ResendVerificationEmailRequest;
+import com.nimbly.phshoesbackend.useraccount.exception.NotificationSendException;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/verify")
-public class VerificationController {
+public class VerificationController implements VerificationApi {
 
-    @Autowired
     private final VerificationService verificationService;
-    @Autowired
-    private final SuppressionService suppressionService;
-    @Autowired
-    private final JwtTokenProvider jwtTokenProvider;
+
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
+
     @Value("${app.frontend.verify-path:/}")
     private String frontendVerifyPath;
 
-    public VerificationController(VerificationService verificationService,
-                                  SuppressionService suppressionService,
-                                  JwtTokenProvider jwtTokenProvider) {
+    public VerificationController(VerificationService verificationService) {
         this.verificationService = verificationService;
-        this.suppressionService = suppressionService;
-        this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    @GetMapping
-    public ResponseEntity<Void> verify(@RequestParam("token") String token) {
-        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-
+    // GET /verify/email?token=...
+    @Override
+    public ResponseEntity<Void> verifyEmail(String token) {
+        if (token == null || token.isBlank()) {
+            log.warn("Missing token");
+            return redirect(frontendBaseUrl, frontendVerifyPath, "missing_token", null, null, null);
+        }
         try {
-            AccountResponse resp = verificationService.verifyByToken(token);
-            URI loc = UriComponentsBuilder.fromUriString(base)
-                    .path(path)
-                    .queryParam("verified", true)
-                    .build(true)
-                    .toUri();
-            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-        } catch (InvalidVerificationTokenException e) {
-            return redirect(base, path, "invalid");
-        } catch (VerificationNotFoundException e) {
-            return redirect(base, path, "not_found");
-        } catch (VerificationExpiredException e) {
-            return redirect(base, path, "expired");
-        } catch (VerificationAlreadyUsedException e) {
-            return redirect(base, path, "used");
+            boolean ok = verificationService.verify(token);
+            return redirect(frontendBaseUrl, frontendVerifyPath, null, ok, null, null);
+        } catch (IllegalArgumentException e) {
+            log.warn("verification.verify failed msg={}", e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "invalid_token", null, null, null);
         } catch (Exception e) {
-            return redirect(base, path, "unknown");
+            log.error("verification.verify unexpected={}", e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "unexpected", null, null, null);
         }
     }
 
-    @GetMapping("/not-me")
-    public ResponseEntity<Void> notMe(@RequestParam("token") String token) {
-        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-
+    // POST /verify/email/resend  body: { "email": "..." }
+    @Override
+    public ResponseEntity<Void> resendVerificationEmail(ResendVerificationEmailRequest body) {
+        if (body == null || body.getEmail() == null || body.getEmail().isBlank()) {
+            return redirect(frontendBaseUrl, frontendVerifyPath, "missing_email", null, null, null);
+        }
         try {
-            // Resolve email (no verification flip)
-            var resolved = verificationService.resolveEmailForToken(token);
-            suppressionService.suppress(
-                    resolved.email(),
-                    SuppressionReason.MANUAL,
-                    "VERIFY_LINK_NOT_ME_CLICK",
-                    "verificationId=" + resolved.verificationId(),
-                    null
-            );
-
-            URI loc = UriComponentsBuilder.fromUriString(base)
-                    .path(path).queryParam("not_me", true).build(true).toUri();
-            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-        } catch (InvalidVerificationTokenException e) {
-            log.error(e.getMessage());
-            return redirectResend(base, path, "invalid");
-        } catch (VerificationNotFoundException e) {
-            log.error(e.getMessage());
-            return redirectResend(base, path, "not_found");
+            verificationService.sendVerificationEmail(body.getEmail());
+            return redirect(frontendBaseUrl, frontendVerifyPath, null, null, true, null);
+        } catch (NotificationSendException e) {
+            log.warn("verification.resend failed email={} msg={}", body.getEmail(), e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "send_failed", null, null, null);
         } catch (Exception e) {
-            log.error(e.getMessage());
-            return redirectResend(base, path, "unknown");
+            log.error("verification.resend unexpected email={} ex={}", body.getEmail(), e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "unexpected", null, null, null);
         }
     }
 
-//    @PostMapping("/verification/resend")
-//    public ResponseEntity<Void> resend(@RequestBody UserAccountsController.ResendRequest req) {
-//        final String base = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl : "http://localhost:5173";
-//        final String path = StringUtils.hasText(frontendVerifyPath) ? frontendVerifyPath : "/";
-//
-//        try {
-//            verificationService.resendVerification(req.email());
-//            URI loc = UriComponentsBuilder.fromUriString(base)
-//                    .path(path)
-//                    .queryParam("resent", true)
-//                    .queryParam("email", req.email())
-//                    .build(true)
-//                    .toUri();
-//            return ResponseEntity.status(HttpStatus.SEE_OTHER).location(loc).build();
-//        } catch (VerificationNotFoundException e) {
-//            return redirectResend(base, path, "not_found");
-//        } catch (VerificationExpiredException e) {
-//            return redirectResend(base, path, "expired");
-//        } catch (InvalidVerificationTokenException e) {
-//            return redirectResend(base, path, "invalid");
-//        } catch (Exception e) {
-//            return redirectResend(base, path, "unknown");
-//        }
-//    }
-
-    private ResponseEntity<Void> redirect(String base, String path, String code) {
-        URI loc = UriComponentsBuilder.fromUriString(base)
-                .path(path)
-                .queryParam("verified", false)
-                .queryParam("error", code)
-                .build(true)
-                .toUri();
-        return ResponseEntity.status(HttpStatus.SEE_OTHER)
-                .headers(securityHeaders())
-                .location(loc)
-                .build();
+    @Override
+    public ResponseEntity<Void> markEmailNotMe(String token) {
+        if ((token == null || token.isBlank())) {
+            return redirect(frontendBaseUrl, frontendVerifyPath, "missing_params", null, null, null);
+        }
+        try {
+            boolean ok = verificationService.notMe(token);
+            return redirect(frontendBaseUrl, frontendVerifyPath, null, null, null, ok);
+        } catch (IllegalArgumentException e) {
+            log.warn("verification.notme invalid token/email msg={}", e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "invalid_params", null, null, null);
+        } catch (Exception e) {
+            log.error("verification.notme unexpected ex={}", e.toString());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "unexpected", null, null, null);
+        }
     }
 
-    private ResponseEntity<Void> redirectResend(String base, String path, String code) {
-        URI loc = UriComponentsBuilder.fromUriString(base)
-                .path(path)
-                .queryParam("resent", false)
-                .queryParam("error", code)
-                .build(true)
-                .toUri();
-        return ResponseEntity.status(HttpStatus.SEE_OTHER)
-                .headers(securityHeaders())
-                .location(loc)
-                .build();
-    }
-
-    private org.springframework.http.HttpHeaders securityHeaders() {
-        var h = new org.springframework.http.HttpHeaders();
-        h.add("Referrer-Policy", "no-referrer");
-        h.add("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        h.add("Pragma", "no-cache");
-        // Optional hardening (safe because we only redirect):
-        // h.add("X-Content-Type-Options", "nosniff");
-        // h.add("X-Frame-Options", "DENY");
-        return h;
+    // Helper: builds 303 redirect with optional flags
+    private ResponseEntity<Void> redirect(
+            String base, String path, String errorCode,
+            Boolean verified, Boolean resent, Boolean notMe
+    ) {
+        UriComponentsBuilder b = UriComponentsBuilder.fromUriString(base).path(path);
+        if (errorCode != null) b.queryParam("error", errorCode);
+        if (verified != null) b.queryParam("verified", verified);
+        if (resent != null) b.queryParam("resent", resent);
+        if (notMe != null) b.queryParam("notMe", notMe);
+        URI location = b.build(true).toUri();
+        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(location).build();
     }
 }

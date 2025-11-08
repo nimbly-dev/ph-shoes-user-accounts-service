@@ -21,29 +21,34 @@ public class AccountSettingsServiceImpl implements AccountSettingsService {
     private final ObjectMapper mapper;
 
     private static final String DEFAULT_SETTINGS_JSON = """
-        {
-          "Notification_Email_Preferences": {
-            "Email_Notifications": true
-          }
+      {
+        "Notification_Email_Preferences": {
+          "Email_Notifications": true
         }
-        """;
+      }
+      """;
 
     @Override
     public JsonNode getOrInit(String userId) {
         var existing = repo.getSettingsJson(userId);
-        if (existing.isEmpty()) {
-            throw new AccountNotFoundException("userId=" + userId);
-        }
+        if (existing.isEmpty()) throw new AccountNotFoundException("userId=" + userId);
 
+        if (existing.get() == null || existing.get().isBlank()) {
+            repo.putSettingsJson(userId, DEFAULT_SETTINGS_JSON);
+            return parse(DEFAULT_SETTINGS_JSON);
+        }
         return parse(existing.get());
     }
 
     @Override
     public JsonNode update(String userId, JsonNode settings) {
-        if (settings == null || settings.isNull()) {
-            throw new IllegalArgumentException("settings must not be null");
-        }
         try {
+            if (settings == null || settings.isNull()) {
+                // allow clearing settings (REMOVE attribute)
+                repo.putSettingsJson(userId, null);
+                return null;
+            }
+
             String json = mapper.writeValueAsString(settings);
             if (json.getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
                 throw new IllegalArgumentException("settings too large (>64KB)");

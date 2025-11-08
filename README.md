@@ -15,6 +15,16 @@ docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml up -d 
 ```
 
+### Live reload
+
+- The account service container now mounts the project source tree and runs with Spring Boot DevTools.
+- Edit files under `src/main` and Boot will automatically recompile + restart. No need to rebuild the image.
+- If you prefer seeing the logs in the foreground while coding, run:
+  ```bash
+  docker compose -f docker-compose.dev.yml up account-service
+  ```
+  and leave that terminal open; changes will trigger fast restarts.
+
 * Service: [http://localhost:8080](http://localhost:8080)
 * MailHog (dev inbox): [http://localhost:8025](http://localhost:8025)
 * DynamoDB Admin: [http://localhost:8001](http://localhost:8001)

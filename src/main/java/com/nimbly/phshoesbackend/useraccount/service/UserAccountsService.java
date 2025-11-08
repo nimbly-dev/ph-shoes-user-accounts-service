@@ -1,11 +1,11 @@
 package com.nimbly.phshoesbackend.useraccount.service;
 
-import com.nimbly.phshoesbackend.useraccount.model.dto.AccountCreateRequest;
-import com.nimbly.phshoesbackend.useraccount.model.dto.AccountResponse;
-import com.nimbly.phshoesbackend.useraccount.model.dto.GetContentFromTokenResponse;
+import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
+import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
+import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
 
 public interface UserAccountsService {
-    AccountResponse register(AccountCreateRequest request);
+    CreateUserAccountResponse register(CreateUserAccountRequest request);
+    TokenContentResponse getContentFromToken(String authorizationHeader);
     void deleteOwnAccount(String userId);
-    GetContentFromTokenResponse getContentFromTokenBearer(String authorizationHeader);
 }
