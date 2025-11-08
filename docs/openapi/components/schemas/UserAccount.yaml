@@ -1,0 +1,30 @@
+components:
+  schemas:
+
+    CreateUserAccountRequest:
+      title: CreateUserAccountRequest
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+      required: [email, password]
+
+    CreateUserAccountResponse:
+      title: CreateUserAccountResponse
+      type: object
+      additionalProperties: false
+      properties:
+        userid:
+          type: string
+        email:
+          type: string
+          format: email
+        emailVerified:
+          type: boolean
+      required: [email, emailVerified, userId]

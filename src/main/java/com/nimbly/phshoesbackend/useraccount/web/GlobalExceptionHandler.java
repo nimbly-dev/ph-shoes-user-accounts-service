@@ -4,7 +4,7 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.AccountLockedExcepti
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.*;
-import com.nimbly.phshoesbackend.useraccount.model.dto.ErrorResponse;
+import com.nimbly.phshoesbackend.useraccounts.model.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -45,83 +45,70 @@ public class GlobalExceptionHandler {
         Map<String, List<String>> errors = new LinkedHashMap<>();
         for (FieldError fe : ex.getBindingResult().getFieldErrors()) {
             errors.computeIfAbsent(fe.getField(), k -> new ArrayList<>())
-                    .add(Optional.ofNullable(fe.getDefaultMessage()).orElse(msg("error.request.typeMismatch", fe.getField())));
+                    .add(Optional.ofNullable(fe.getDefaultMessage())
+                            .orElse(msg("error.request.typeMismatch", fe.getField())));
         }
-        return new ErrorResponse(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(), errors);
+        ErrorResponse body = new ErrorResponse("VALIDATION_ERROR", msg("error.validation.body"));
+        body.setDetails(errors);
+        return body;
     }
 
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleEmailConflict(EmailAlreadyRegisteredException ex) {
-        return new ErrorResponse(
-                HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
-                Map.of("email", List.of(msg("error.email.alreadyRegistered")))
-        );
+        ErrorResponse body = new ErrorResponse("EMAIL_CONFLICT", msg("error.email.alreadyRegistered"));
+        body.setDetails(Map.of("email", List.of(msg("error.email.alreadyRegistered"))));
+        return body;
     }
 
     @ExceptionHandler(InvalidVerificationTokenException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleInvalidToken(InvalidVerificationTokenException ex) {
-        return new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                Map.of("verification", List.of(msg("error.verification.invalid")))
-        );
+        ErrorResponse body = new ErrorResponse("INVALID_VERIFICATION_TOKEN", msg("error.verification.invalid"));
+        body.setDetails(Map.of("verification", List.of(msg("error.verification.invalid"))));
+        return body;
     }
 
     @ExceptionHandler(VerificationNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleVerificationNotFound(VerificationNotFoundException ex) {
-        return new ErrorResponse(
-                HttpStatus.NOT_FOUND.value(),
-                HttpStatus.NOT_FOUND.getReasonPhrase(),
-                Map.of("verification", List.of(msg("error.verification.notFound")))
-        );
+        ErrorResponse body = new ErrorResponse("VERIFICATION_NOT_FOUND", msg("error.verification.notFound"));
+        body.setDetails(Map.of("verification", List.of(msg("error.verification.notFound"))));
+        return body;
     }
 
     @ExceptionHandler(VerificationExpiredException.class)
     @ResponseStatus(HttpStatus.GONE)
     public ErrorResponse handleVerificationExpired(VerificationExpiredException ex) {
-        return new ErrorResponse(
-                HttpStatus.GONE.value(),
-                HttpStatus.GONE.getReasonPhrase(),
-                Map.of("verification", List.of(msg("error.verification.expired")))
-        );
+        ErrorResponse body = new ErrorResponse("VERIFICATION_EXPIRED", msg("error.verification.expired"));
+        body.setDetails(Map.of("verification", List.of(msg("error.verification.expired"))));
+        return body;
     }
 
     @ExceptionHandler(VerificationAlreadyUsedException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleVerificationUsed(VerificationAlreadyUsedException ex) {
-        return new ErrorResponse(
-                HttpStatus.CONFLICT.value(),
-                HttpStatus.CONFLICT.getReasonPhrase(),
-                Map.of("verification", List.of(msg("error.verification.used")))
-        );
+        ErrorResponse body = new ErrorResponse("VERIFICATION_USED", msg("error.verification.used"));
+        body.setDetails(Map.of("verification", List.of(msg("error.verification.used"))));
+        return body;
     }
 
-    @ExceptionHandler({ MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class })
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleBadRequestParams(Exception ex) {
         if (ex instanceof MissingServletRequestParameterException mse) {
-            return new ErrorResponse(
-                    HttpStatus.BAD_REQUEST.value(),
-                    HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                    Map.of("request", List.of(msg("error.request.missingParam", mse.getParameterName())))
-            );
+            ErrorResponse body = new ErrorResponse("BAD_REQUEST", msg("error.request.missingParam", mse.getParameterName()));
+            body.setDetails(Map.of("request", List.of(msg("error.request.missingParam", mse.getParameterName()))));
+            return body;
         }
         if (ex instanceof MethodArgumentTypeMismatchException mme) {
-            return new ErrorResponse(
-                    HttpStatus.BAD_REQUEST.value(),
-                    HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                    Map.of("request", List.of(msg("error.request.typeMismatch", mme.getName())))
-            );
+            ErrorResponse body = new ErrorResponse("BAD_REQUEST", msg("error.request.typeMismatch", mme.getName()));
+            body.setDetails(Map.of("request", List.of(msg("error.request.typeMismatch", mme.getName()))));
+            return body;
         }
-        return new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                Map.of("request", List.of(msg("error.request.typeMismatch", "request")))
-        );
+        ErrorResponse body = new ErrorResponse("BAD_REQUEST", msg("error.request.typeMismatch", "request"));
+        body.setDetails(Map.of("request", List.of(msg("error.request.typeMismatch", "request"))));
+        return body;
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -130,60 +117,67 @@ public class GlobalExceptionHandler {
         List<String> msgs = ex.getConstraintViolations().stream()
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .toList();
-        return new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                Map.of("request", msgs.isEmpty() ? List.of(msg("error.request.typeMismatch", "request")) : msgs)
-        );
+        ErrorResponse body = new ErrorResponse("CONSTRAINT_VIOLATION",
+                msgs.isEmpty() ? msg("error.request.typeMismatch", "request") : msg("error.validation.query"));
+        body.setDetails(Map.of("request", msgs.isEmpty() ? List.of(msg("error.request.typeMismatch", "request")) : msgs));
+        return body;
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNoHandler(NoHandlerFoundException ex) {
-        return new ErrorResponse(
-                HttpStatus.NOT_FOUND.value(),
-                HttpStatus.NOT_FOUND.getReasonPhrase(),
-                Map.of("path", List.of(msg("error.request.noHandler", ex.getRequestURL())))
-        );
+        ErrorResponse body = new ErrorResponse("NOT_FOUND", msg("error.request.noHandler", ex.getRequestURL()));
+        body.setDetails(Map.of("path", List.of(msg("error.request.noHandler", ex.getRequestURL()))));
+        return body;
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleInvalidCredentials(InvalidCredentialsException ex) {
-        return new ErrorResponse(
-                HttpStatus.UNAUTHORIZED.value(),
-                HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                Map.of("credentials", List.of(msg("error.auth.invalidCredentials")))
-        );
+        ErrorResponse body = new ErrorResponse("INVALID_CREDENTIALS", msg("error.auth.invalidCredentials"));
+        body.setDetails(Map.of("credentials", List.of(msg("error.auth.invalidCredentials"))));
+        return body;
+    }
+
+    @ExceptionHandler(AccountBlockedException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleAccountBlockedException(AccountBlockedException ex) {
+        ErrorResponse body = new ErrorResponse("ACCOUNT_BLOCKED", msg("error.email.blocked"));
+        body.setDetails(Map.of("account", List.of(msg("error.email.blocked"))));
+        return body;
     }
 
     @ExceptionHandler(AccountLockedException.class)
     @ResponseStatus(HttpStatus.LOCKED)
     public ErrorResponse handleAccountLocked(AccountLockedException ex) {
         int minutes = Math.max(1, (int) Math.ceil(lockProps.getDurationSeconds() / 60.0));
-        return new ErrorResponse(
-                HttpStatus.LOCKED.value(),
-                HttpStatus.LOCKED.getReasonPhrase(),
-                Map.of("account", List.of(msg("error.auth.accountLocked", minutes)))
-        );
+        ErrorResponse body = new ErrorResponse("ACCOUNT_LOCKED", msg("error.auth.accountLocked", minutes));
+        body.setDetails(Map.of("account", List.of(msg("error.auth.accountLocked", minutes))));
+        return body;
     }
 
     @ExceptionHandler(AccountNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleAccountNotFound(Exception ex) {
-        return new ErrorResponse(404, "Not Found", Map.of("account", List.of("Account not found or already deleted")));
+        ErrorResponse body = new ErrorResponse("ACCOUNT_NOT_FOUND", msg("error.account.notFound"));
+        body.setDetails(Map.of("account", List.of(msg("error.account.notFound"))));
+        return body;
     }
 
     @ExceptionHandler(SessionNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleSessionNotFound(Exception ex) {
-        return new ErrorResponse(404, "Not Found", Map.of("session", List.of("Session not found or already revoked")));
+        ErrorResponse body = new ErrorResponse("SESSION_NOT_FOUND", msg("error.session.notFound"));
+        body.setDetails(Map.of("session", List.of(msg("error.session.notFound"))));
+        return body;
     }
 
     @ExceptionHandler(NotificationSendException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleNotificationSendError(Exception ex) {
-        return new ErrorResponse(500, "Internal Server Error", Map.of("notification", List.of("Failed to send notification")));
+        ErrorResponse body = new ErrorResponse("NOTIFICATION_SEND_FAILED", msg("error.notification.sendFailed"));
+        body.setDetails(Map.of("notification", List.of(msg("error.notification.sendFailed"))));
+        return body;
     }
 
     @ExceptionHandler(Exception.class)
@@ -195,25 +189,20 @@ public class GlobalExceptionHandler {
                     MDC.put("traceId", t);
                     return t;
                 });
-
-        log.error("traceId={} method={} uri={} msg={}",
-                traceId, req.getMethod(), req.getRequestURI(), ex.getMessage(), ex);
-
-        return new ErrorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                Map.of("global", List.of("Something went wrong on our side. Please try again."),
-                        "traceId", List.of(traceId))
-        );
+        log.error("traceId={} method={} uri={} msg={}", traceId, req.getMethod(), req.getRequestURI(), ex.getMessage(), ex);
+        Map<String, List<String>> details = new LinkedHashMap<>();
+        details.put("global", List.of(msg("error.global.tryAgain")));
+        details.put("traceId", List.of(traceId));
+        ErrorResponse body = new ErrorResponse("INTERNAL_ERROR", HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
+        body.setDetails(details);
+        return body;
     }
+
     @ExceptionHandler(EmailNotVerifiedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorResponse handleEmailNotVerified(Exception ex) {
-        return new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
-                HttpStatus.FORBIDDEN.getReasonPhrase(),
-                Map.of("verification", List.of("Please verify your email to continue."))
-        );
+        ErrorResponse body = new ErrorResponse("EMAIL_NOT_VERIFIED", msg("error.auth.emailNotVerified"));
+        body.setDetails(Map.of("verification", List.of(msg("error.auth.emailNotVerified"))));
+        return body;
     }
-
 }

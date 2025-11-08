@@ -1,0 +1,10 @@
+components:
+  schemas:
+    ResendVerificationEmailRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]

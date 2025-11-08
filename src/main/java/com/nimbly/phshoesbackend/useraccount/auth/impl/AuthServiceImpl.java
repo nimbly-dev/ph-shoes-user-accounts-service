@@ -2,20 +2,25 @@ package com.nimbly.phshoesbackend.useraccount.auth.impl;
 
 import com.nimbly.phshoesbackend.services.common.core.model.Account;
 import com.nimbly.phshoesbackend.services.common.core.repository.AccountRepository;
+import com.nimbly.phshoesbackend.services.common.core.repository.SessionRepository;
+import com.nimbly.phshoesbackend.services.common.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.auth.AuthService;
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
-import com.nimbly.phshoesbackend.useraccount.auth.dto.LoginRequest;
-import com.nimbly.phshoesbackend.useraccount.auth.dto.TokenResponse;
 import com.nimbly.phshoesbackend.useraccount.auth.exception.AccountLockedException;
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.EmailNotVerifiedException;
+import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
+import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -29,110 +34,103 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AppAuthProps authProps;
     private final LockoutProps lockProps;
-
-    private String dummyHash;
-
-    @jakarta.annotation.PostConstruct
-    void init() {
-        this.dummyHash = passwordEncoder.encode("dummy-password-for-timing");
-    }
+    private final EmailCrypto emailCrypto;
+    private final SessionRepository sessionRepository;
+    private final VerificationRepository verificationRepository;
 
     @Override
     public TokenResponse login(LoginRequest request, String ip, String userAgent) {
         long t0 = System.currentTimeMillis();
-        final String email = normalizeEmail(request.getEmail());
+
+        final String normalizedEmail = emailCrypto.normalize(request.getEmail());
+        if (normalizedEmail == null || normalizedEmail.isBlank()) {
+            throw new InvalidCredentialsException();
+        }
+        final List<String> emailHashes = emailCrypto.hashCandidates(normalizedEmail);
+        final String primaryHash = emailHashes.isEmpty() ? null : emailHashes.get(0);
         final String rawPassword = Objects.requireNonNullElse(request.getPassword(), "");
 
         try {
-            log.info("auth.login start email={} ip={}", maskEmail(email), ip);
+            log.info("auth.login start emailHashPrefix={} ip={}", shortHash(primaryHash), ip);
 
-            final Optional<Account> opt = accounts.findByEmail(email);
-
-            if (opt.isEmpty()) {
-                log.warn("auth.login no_account emailHash={}", sha256Hex(email));
-            }
-
-            // lockout check (if account exists)
-            if (opt.isPresent() && isLocked(opt.get())) {
-                log.warn("auth.login locked userId={} emailHash={}", opt.get().getUserid(), sha256Hex(email));
-                throw new AccountLockedException();
-            }
-
-            // password verification (burn cycles if user unknown)
-            final boolean passwordOk;
-            if (opt.isPresent()) {
-                String stored = opt.get().getPassword();
-                if (stored == null || stored.isBlank()) {
-                    log.warn("auth.login stored_password_missing userId={} emailHash={}",
-                            opt.get().getUserid(), sha256Hex(email));
-                    passwordOk = false;
-                } else {
-                    passwordOk = passwordEncoder.matches(rawPassword, stored);
-                    log.debug("auth.login password_match userId={} match={}", opt.get().getUserid(), passwordOk);
+            Optional<Account> opt = Optional.empty();
+            for (String candidate : emailHashes) {
+                opt = accounts.findByEmailHash(candidate);
+                if (opt.isPresent()) {
+                    break;
                 }
-            } else {
-                passwordEncoder.matches(rawPassword, dummyHash); // equalize timing
-                passwordOk = false;
             }
-
-            if (!passwordOk) {
-                accounts.recordFailedLogin(email, lockProps.getMaxFailures(), lockProps.getDurationSeconds());
-                log.warn("auth.login failed reason={} emailHash={}",
-                        (opt.isPresent() ? "bad_password" : "no_account"), sha256Hex(email));
+            if (opt.isEmpty()) {
+                log.warn("auth.login no_account emailHashPrefix={}", shortHash(primaryHash));
                 throw new InvalidCredentialsException();
             }
 
-            // success path
             final Account acc = opt.get();
 
-            // BLOCK unverified users
-            Boolean verified = acc.getEmailVerified();
-            if (verified == null || !verified) {
-                log.warn("auth.login unverified userId={} emailHash={}", acc.getUserid(), sha256Hex(email));
+            if (isLocked(acc)) {
+                log.warn("auth.login locked userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                throw new AccountLockedException();
+            }
+
+            String stored = acc.getPasswordHash();
+            boolean passwordOk = (stored != null && !stored.isBlank()) && passwordEncoder.matches(rawPassword, stored);
+            if (!passwordOk) {
+                recordFailedLogin(acc);
+                log.warn("auth.login failed reason=bad_password userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                throw new InvalidCredentialsException();
+            }
+
+            if (primaryHash != null && !primaryHash.equals(acc.getEmailHash())) {
+                migrateEmailHash(acc, primaryHash);
+            }
+
+            if (Boolean.FALSE.equals(acc.getIsVerified())) {
+                if (hasVerifiedEmail(emailHashes)) {
+                    accounts.setVerified(acc.getUserId(), true);
+                    acc.setIsVerified(true);
+                    log.info("auth.login restored_verification userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                }
+            }
+
+            if (Boolean.FALSE.equals(acc.getIsVerified())) {
+                log.warn("auth.login unverified userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
                 throw new EmailNotVerifiedException();
             }
 
-            // record telemetry & reset counters
-            accounts.recordSuccessfulLogin(acc.getUserid(), ip, userAgent);
+            recordSuccessfulLogin(acc, ip, userAgent);
 
-            // issue token
-            final String token = jwtTokenProvider.issueAccessToken(acc.getUserid(), email);
-
-            // create session from token (requires jti + exp in token)
+            final String token = jwtTokenProvider.issueAccessToken(acc.getUserId(), normalizedEmail);
             var decoded = jwtTokenProvider.parseAccess(token);
             String jti = decoded.getId();
             if (jti == null || jti.isBlank() || decoded.getExpiresAt() == null) {
-                log.error("auth.login token_missing_jti_or_exp userId={}", acc.getUserid());
+                log.error("auth.login token_missing_jti_or_exp userId={}", acc.getUserId());
                 throw new IllegalStateException("Token missing jti/exp");
             }
             long exp = decoded.getExpiresAt().toInstant().getEpochSecond();
-            accounts.createSession(jti, acc.getUserid(), exp, ip, userAgent);
+            sessionRepository.createSession(jti, acc.getUserId(), exp, ip, userAgent);
 
-            // response
             TokenResponse res = new TokenResponse();
-            res.setAccess_token(token);
-            res.setExpires_in(authProps.getAccessTtlSeconds());
+            res.setAccessToken(token);
+            res.setExpiresIn((long) authProps.getAccessTtlSeconds());
 
-            log.info("auth.login success userId={} inMs={}", acc.getUserid(), System.currentTimeMillis() - t0);
+            log.info("auth.login success userId={} inMs={}", acc.getUserId(), System.currentTimeMillis() - t0);
             return res;
 
         } catch (RuntimeException e) {
-            log.error("auth.login error emailHash={} ip={} ua={} msg={}",
-                    sha256Hex(email), ip, truncate(userAgent, 64), e.toString(), e);
-            throw e; // GlobalExceptionHandler will format the response
+            log.error("auth.login error emailHashPrefix={} ip={} ua={} msg={}",
+                    shortHash(primaryHash), ip, truncate(userAgent, 64), e.toString(), e);
+            throw e;
         }
     }
-
 
     @Override
     public void logout(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             log.warn("auth.logout missing_or_bad_authorization_header");
-            throw new InvalidCredentialsException(); // -> 401
+            throw new InvalidCredentialsException();
         }
-
         String token = authorizationHeader.substring(7).trim();
-        var jwt = jwtTokenProvider.parseAccess(token); // throws on invalid/expired
+        var jwt = jwtTokenProvider.parseAccess(token);
 
         String jti = jwt.getId();
         if (jti == null || jti.isBlank()) {
@@ -140,31 +138,42 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException();
         }
 
-        // Second logout or unknown session -> 401
-        if (!accounts.isSessionActive(jti)) {
-            log.info("auth.logout not_active jti={}", jti);
-            throw new InvalidCredentialsException();
-        }
+        if (!sessionRepository.isSessionActive(jti)) throw new InvalidCredentialsException();
+        sessionRepository.revokeSession(jti);
 
-        // First logout -> revoke and return 204
-        accounts.revokeSession(jti);
         log.info("auth.logout revoked jti={} sub={}", jti, jwt.getSubject());
     }
 
-    private static String normalizeEmail(String email) {
-        return email == null ? null : email.trim().toLowerCase();
+    private boolean isLocked(Account acc) {
+        Instant until = acc.getLockUntil();
+        return until != null && Instant.now().isBefore(until);
     }
 
-    private static boolean isLocked(Account acc) {
-        Long until = acc.getLockUntil();
-        return until != null && until > System.currentTimeMillis();
+    private void recordFailedLogin(Account acc) {
+        Integer failures = acc.getLoginFailCount();
+        int newCount = (failures == null ? 0 : failures) + 1;
+        acc.setLoginFailCount(newCount);
+        if (newCount >= lockProps.getMaxFailures()) {
+            acc.setLockUntil(Instant.now().plusSeconds(lockProps.getDurationSeconds()));
+            acc.setLoginFailCount(0);
+        }
+        acc.setUpdatedAt(Instant.now());
+        accounts.save(acc);
     }
 
-    private static String maskEmail(String email) {
-        if (email == null || email.isBlank()) return "(blank)";
-        int at = email.indexOf('@');
-        if (at <= 1) return "***" + (at >= 0 ? email.substring(at) : "");
-        return email.charAt(0) + "***" + (at >= 0 ? email.substring(at) : "");
+    private void recordSuccessfulLogin(Account acc, String ip, String userAgent) {
+        acc.setLoginFailCount(0);
+        acc.setLockUntil(null);
+        acc.setLastLoginAt(Instant.now());
+        acc.setLastLoginIp(ip);
+        acc.setLastLoginUserAgent(userAgent);
+        acc.setUpdatedAt(Instant.now());
+        accounts.save(acc);
+    }
+
+    private static String shortHash(String emailHash) {
+        if (emailHash == null) return "(null)";
+        return emailHash.length() <= 8 ? emailHash : emailHash.substring(0, 8);
     }
 
     private static String truncate(String s, int max) {
@@ -172,13 +181,18 @@ public class AuthServiceImpl implements AuthService {
         return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 
-    private static String sha256Hex(String s) {
-        try {
-            var md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] d = md.digest((s == null ? "" : s).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            var sb = new StringBuilder(d.length * 2);
-            for (byte b : d) sb.append(String.format("%02x", b));
-            return sb.toString();
-        } catch (Exception ex) { return "sha256-error"; }
+    private void migrateEmailHash(Account acc, String newHash) {
+        acc.setEmailHash(newHash);
+        acc.setUpdatedAt(Instant.now());
+        accounts.save(acc);
+    }
+
+    private boolean hasVerifiedEmail(List<String> emailHashes) {
+        for (String candidate : emailHashes) {
+            if (verificationRepository.hasVerifiedEntryForEmailHash(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

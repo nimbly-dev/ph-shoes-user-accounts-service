@@ -1,78 +1,89 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseCookie;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbly.phshoesbackend.useraccount.auth.AuthService;
-import com.nimbly.phshoesbackend.useraccount.auth.dto.LoginRequest;
-import com.nimbly.phshoesbackend.useraccount.auth.dto.TokenResponse;
+import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
+import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccounts.api.AuthApi;
+import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
+import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
+import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.NativeWebRequest;
 
-import java.time.Duration;
+import java.util.Locale;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthApi {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final NativeWebRequest nativeWebRequest;
 
-    @PostMapping(
-            path = "/login",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest body,
-                                               HttpServletRequest request) {
-        String ip = clientIp(request);
-        String ua = userAgent(request);
-        log.info("Login attempt for email={} ip={}", safeEmail(body.getEmail()), ip);
-        TokenResponse token = authService.login(body, ip, ua);
-        return ResponseEntity.ok(token);
+    @Override
+    public ResponseEntity<TokenResponse> authLogin(@Valid LoginRequest loginRequest) {
+        HttpServletRequest req = nativeWebRequest.getNativeRequest(HttpServletRequest.class);
+        String ip = extractClientIp(req);
+        String ua = req != null ? req.getHeader("User-Agent") : null;
+
+        TokenResponse res = authService.login(
+                new LoginRequest()
+                        .email(normalizeEmail(loginRequest.getEmail()))
+                        .password(loginRequest.getPassword()), ip, ua
+        );
+        if (res.getTokenType() == null) {
+            res.setTokenType("Bearer");
+        }
+        return ResponseEntity.ok(res);
     }
 
-    @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
-        String authz = request.getHeader(HttpHeaders.AUTHORIZATION);
-        authService.logout(authz);
-        ResponseCookie clear = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true).secure(false)
-                .sameSite("Lax").path("/api/v1/auth")
-                .maxAge(Duration.ZERO)
-                .build();
+    @Override
+    public ResponseEntity<TokenContentResponse> getContentFromTokenAuth() {
+        String authorizationHeader = nativeWebRequest.getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new InvalidCredentialsException();
+        }
+        String token = authorizationHeader.substring(7).trim();
+        DecodedJWT decoded = jwtTokenProvider.parseAccess(token);
 
-        log.info("auth.logout done");
-        return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, clear.toString())
-                .build();
+        TokenContentResponse res = new TokenContentResponse();
+        res.setSub(decoded.getSubject());
+        res.setEmail(decoded.getClaim("email").asString());
+        res.setIat(decoded.getIssuedAt() == null ? 0L : decoded.getIssuedAt().toInstant().getEpochSecond());
+        res.setExp(decoded.getExpiresAt() == null ? 0L : decoded.getExpiresAt().toInstant().getEpochSecond());
+        res.setRoles(new java.util.ArrayList<>());
+        return ResponseEntity.ok(res);
     }
 
-    private static String clientIp(HttpServletRequest req) {
-        String xf = req.getHeader("X-Forwarded-For");
-        if (xf != null && !xf.isBlank()) return xf.split(",")[0].trim();
-        String xr = req.getHeader("X-Real-IP");
-        if (xr != null && !xr.isBlank()) return xr;
-        return req.getRemoteAddr();
+    @Override
+    public ResponseEntity<Void> authLogout() {
+        String authorizationHeader = nativeWebRequest.getHeader(HttpHeaders.AUTHORIZATION);
+        authService.logout(authorizationHeader);
+        return ResponseEntity.noContent().build();
     }
 
-    private static String userAgent(HttpServletRequest req) {
-        String ua = req.getHeader("User-Agent");
-        return ua == null ? "unknown" : ua;
+    private static String normalizeEmail(String raw) {
+        return raw == null ? null : raw.trim().toLowerCase(Locale.ROOT);
     }
 
-    private static String safeEmail(String email) {
-        if (email == null || email.isBlank()) return "(blank)";
-        int at = email.indexOf('@');
-        if (at <= 1) return "***" + email.substring(Math.max(0, at));
-        return email.charAt(0) + "***" + email.substring(at);
+    private static String extractClientIp(HttpServletRequest request) {
+        if (request == null) return "unknown";
+        String h = request.getHeader("X-Forwarded-For");
+        if (h != null && !h.isBlank()) {
+            int comma = h.indexOf(',');
+            return (comma > 0) ? h.substring(0, comma).trim() : h.trim();
+        }
+        h = request.getHeader("X-Real-IP");
+        if (h != null && !h.isBlank()) return h.trim();
+        return request.getRemoteAddr();
     }
 }
