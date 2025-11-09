@@ -13,6 +13,7 @@ import com.nimbly.phshoesbackend.services.common.core.repository.AccountReposito
 import com.nimbly.phshoesbackend.services.common.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
 import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
@@ -231,8 +232,8 @@ public class VerificationServiceImpl implements VerificationService {
             throw new VerificationExpiredException("expired");
         }
 
-        if (entry.getStatus() != VerificationStatus.PENDING) {
-            return entry.getStatus() == VerificationStatus.VERIFIED;
+        if (entry.getStatus() != VerificationStatus.PENDING || accountAlreadyVerified(entry)) {
+            throw new VerificationAlreadyUsedException("Verification token already consumed");
         }
 
         try {
@@ -245,7 +246,11 @@ public class VerificationServiceImpl implements VerificationService {
             if (after.getExpiresAt() != null && after.getExpiresAt() <= nowEpochSeconds) {
                 throw new VerificationExpiredException("expired");
             }
-            return after.getStatus() == VerificationStatus.VERIFIED;
+            if (after.getStatus() != VerificationStatus.PENDING || accountAlreadyVerified(after)) {
+                throw new VerificationAlreadyUsedException("Verification token already consumed");
+            }
+            // status somehow remained pending; retry once
+            verificationRepository.markUsedIfPendingAndNotExpired(verificationId, nowEpochSeconds);
         }
 
         // Mark account verified (late-bind by hash if necessary)
@@ -372,6 +377,28 @@ public class VerificationServiceImpl implements VerificationService {
                 .map(accountRepository::findByEmailHash)
                 .flatMap(Optional::stream)
                 .findFirst();
+    }
+
+    private boolean accountAlreadyVerified(VerificationEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+
+        if (entry.getUserId() != null && !entry.getUserId().isBlank()) {
+            return accountRepository.findByUserId(entry.getUserId())
+                    .map(Account::getIsVerified)
+                    .map(Boolean::booleanValue)
+                    .orElse(false);
+        }
+
+        if (entry.getEmailHash() != null && !entry.getEmailHash().isBlank()) {
+            return accountRepository.findByEmailHash(entry.getEmailHash())
+                    .map(Account::getIsVerified)
+                    .map(Boolean::booleanValue)
+                    .orElse(false);
+        }
+
+        return false;
     }
 
     private static String shortHash(String hash) {

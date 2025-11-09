@@ -96,3 +96,33 @@ schema:
     initial: 0.0.0
     tablePrefix: ""
     serviceName: accounts_service
+
+phshoes:
+  api:
+    rate-limit:
+      enabled: true
+      default-window: 24h
+      global:
+        enabled: true
+        limit: 2000
+      per-ip:
+        enabled: true
+        limit: 120
+      per-user:
+        enabled: true
+        limit: 60
+      routes:
+        - name: signup-create
+          pattern: /api/v1/user-accounts
+          methods: [POST]
+          per-user:
+            enabled: true
+            limit: 3
+            window: 1h
+        - name: verification-resend
+          pattern: /api/v1/verify/email/resend
+          methods: [POST]
+          per-user:
+            enabled: true
+            limit: 3
+            window: 1h

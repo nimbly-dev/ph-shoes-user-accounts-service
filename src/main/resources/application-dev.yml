@@ -83,3 +83,33 @@ springdoc:
 
 schema:
   auto-create: true
+
+phshoes:
+  api:
+    rate-limit:
+      enabled: true
+      default-window: 24h
+      global:
+        enabled: true
+        limit: 500
+      per-ip:
+        enabled: true
+        limit: 50
+      per-user:
+        enabled: true
+        limit: 20
+      routes:
+        - name: signup-create
+          pattern: /api/v1/user-accounts
+          methods: [POST]
+          per-user:
+            enabled: true
+            limit: 3
+            window: 30m
+        - name: verification-resend
+          pattern: /api/v1/verify/email/resend
+          methods: [POST]
+          per-user:
+            enabled: true
+            limit: 3
+            window: 30m
