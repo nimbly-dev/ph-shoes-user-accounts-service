@@ -4,6 +4,7 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.AccountLockedExcepti
 import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.*;
+import com.nimbly.phshoesbackend.services.common.core.api.rate.RateLimitExceededException;
 import com.nimbly.phshoesbackend.useraccounts.model.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -177,6 +178,17 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleNotificationSendError(Exception ex) {
         ErrorResponse body = new ErrorResponse("NOTIFICATION_SEND_FAILED", msg("error.notification.sendFailed"));
         body.setDetails(Map.of("notification", List.of(msg("error.notification.sendFailed"))));
+        return body;
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ErrorResponse handleRateLimitExceeded(RateLimitExceededException ex) {
+        ErrorResponse body = new ErrorResponse("RATE_LIMITED", msg("error.rateLimit.tooMany"));
+        body.setDetails(Map.of(
+                "scope", List.of(Optional.ofNullable(ex.getScope()).orElse("unknown")),
+                "rateLimit", List.of(msg("error.rateLimit.tooMany"))
+        ));
         return body;
     }
 

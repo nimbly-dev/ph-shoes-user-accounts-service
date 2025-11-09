@@ -48,6 +48,13 @@ Base path: `/api/v1/user-accounts`
 
 > In dev, emails are captured by **MailHog** (open the UI to see the message + link).
 
+## ⏱️ Rate limiting
+
+- The service now uses the shared `ApiRateLimiter` from `ph-shoes-services-common-core` to throttle email-triggering endpoints.
+- Configuration lives under `phshoes.api.rate-limit` in `application*.yml`. It defines global/per-IP/per-user caps plus per-route overrides (e.g., account creation and `/verify/email/resend`).
+- Dev profile keeps the numbers low so you can exercise the limiter quickly; `application.yml` and `application-prod.yml` raise the ceilings for staging/prod.
+- Update those YAML blocks if SES quota or traffic patterns change; no code changes are required.
+
 ## Dev Images & Ports
 
 | Service           | Image                          | Ports (host) |

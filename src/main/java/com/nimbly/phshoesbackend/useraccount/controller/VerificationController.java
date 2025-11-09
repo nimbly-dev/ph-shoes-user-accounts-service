@@ -1,8 +1,9 @@
 package com.nimbly.phshoesbackend.useraccount.controller;
 
+import com.nimbly.phshoesbackend.useraccount.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccounts.api.VerificationApi;
 import com.nimbly.phshoesbackend.useraccounts.model.ResendVerificationEmailRequest;
-import com.nimbly.phshoesbackend.useraccount.exception.NotificationSendException;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,9 @@ public class VerificationController implements VerificationApi {
         try {
             boolean ok = verificationService.verify(token);
             return redirect(frontendBaseUrl, frontendVerifyPath, null, ok, null, null);
+        } catch (VerificationAlreadyUsedException e) {
+            log.warn("verification.verify already_used token={} msg={}", token, e.getMessage());
+            return redirect(frontendBaseUrl, frontendVerifyPath, "already_used", null, null, null);
         } catch (IllegalArgumentException e) {
             log.warn("verification.verify failed msg={}", e.toString());
             return redirect(frontendBaseUrl, frontendVerifyPath, "invalid_token", null, null, null);
