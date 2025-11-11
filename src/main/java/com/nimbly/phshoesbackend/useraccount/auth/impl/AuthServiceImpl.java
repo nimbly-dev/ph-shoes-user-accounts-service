@@ -11,7 +11,7 @@ import com.nimbly.phshoesbackend.useraccount.auth.exception.InvalidCredentialsEx
 import com.nimbly.phshoesbackend.useraccount.config.props.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.exception.EmailNotVerifiedException;
-import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
 import lombok.RequiredArgsConstructor;

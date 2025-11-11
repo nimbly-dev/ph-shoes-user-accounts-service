@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.config.props.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.exception.InvalidVerificationTokenException;
-import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccount.unsubscribe.UnsubscribeTokenCodec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
