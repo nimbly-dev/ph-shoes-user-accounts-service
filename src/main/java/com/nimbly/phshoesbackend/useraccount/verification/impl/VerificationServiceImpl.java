@@ -16,7 +16,7 @@ import com.nimbly.phshoesbackend.useraccount.exception.NotificationSendException
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.exception.VerificationNotFoundException;
-import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.unsubscribe.UnsubscribeService;
 import com.nimbly.phshoesbackend.useraccount.verification.VerificationService;

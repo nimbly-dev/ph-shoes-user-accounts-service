@@ -6,7 +6,7 @@ import com.nimbly.phshoesbackend.services.common.core.repository.AccountReposito
 import com.nimbly.phshoesbackend.services.common.core.repository.SuppressionRepository;
 import com.nimbly.phshoesbackend.services.common.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.auth.JwtTokenProvider;
-import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccount.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
