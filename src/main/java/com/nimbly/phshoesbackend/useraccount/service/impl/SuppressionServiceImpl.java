@@ -3,7 +3,7 @@ package com.nimbly.phshoesbackend.useraccount.service.impl;
 import com.nimbly.phshoesbackend.services.common.core.model.SuppressionEntry;
 import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
 import com.nimbly.phshoesbackend.services.common.core.repository.SuppressionRepository;
-import com.nimbly.phshoesbackend.useraccount.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccount.service.SuppressionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
