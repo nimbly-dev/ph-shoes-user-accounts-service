@@ -31,6 +31,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -
 
 # Build
 COPY src ./src
+COPY docs ./docs
 RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -DskipTests package
 
 # ---------- Runtime stage ----------
