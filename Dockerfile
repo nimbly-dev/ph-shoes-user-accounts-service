@@ -2,6 +2,28 @@
 FROM maven:3-amazoncorretto-21 AS build
 WORKDIR /workspace
 
+# GitHub Packages credentials (injected via build args/env during CI/CD)
+ARG GH_ACTOR
+ARG GH_PACKAGES_TOKEN
+
+# Configure Maven to authenticate against the private GitHub repositories
+RUN mkdir -p /root/.m2 && printf '%s\n' \
+    '<settings>' \
+    '  <servers>' \
+    '    <server>' \
+    '      <id>github-nimbly-notification</id>' \
+    "      <username>${GH_ACTOR}</username>" \
+    "      <password>${GH_PACKAGES_TOKEN}</password>" \
+    '    </server>' \
+    '    <server>' \
+    '      <id>github-nimbly-commons</id>' \
+    "      <username>${GH_ACTOR}</username>" \
+    "      <password>${GH_PACKAGES_TOKEN}</password>" \
+    '    </server>' \
+    '  </servers>' \
+    '</settings>' \
+    > /root/.m2/settings.xml
+
 # Cache dependencies first
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn -q -e -U -DskipTests dependency:go-offline
