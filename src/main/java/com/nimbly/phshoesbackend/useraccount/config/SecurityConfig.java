@@ -47,6 +47,7 @@ public class SecurityConfig {
 
                         // Public endpoints (account creation)
                         .requestMatchers(HttpMethod.POST, "/user-accounts").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/user-accounts/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/accounts").permitAll()
 
                         // Public endpoints (account unsubscribe/resubscribe/status)

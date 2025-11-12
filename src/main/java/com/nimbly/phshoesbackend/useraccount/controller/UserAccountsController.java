@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.NativeWebRequest;
 
@@ -52,6 +54,16 @@ public class UserAccountsController implements UserAccountsApi {
         }
 
         return ResponseEntity.status(201).body(created);
+    }
+
+    /**
+     * Legacy alias for clients that still POST to /user-accounts/register.
+     * Delegates to the canonical OpenAPI-generated handler above.
+     */
+    @PostMapping("/user-accounts/register")
+    public ResponseEntity<CreateUserAccountResponse> createUserAccountLegacy(
+            @Valid @RequestBody CreateUserAccountRequest request) {
+        return createUserAccount(request);
     }
 
     @Override
