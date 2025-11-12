@@ -69,10 +69,10 @@ aws:
 
 verification:
   ttlSeconds: 900
-  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:"https://www.phshoesproject.com/verify/"}
-  verificationLink: ${VERIFICATION_LINK_BASE_URL:"https://www.phshoesproject.com/verify/"}
-  notMeLink: ${VERIFICATION_NOT_ME_URL:"https://www.phshoesproject.com/verify/"}
-  unsubscribeLink: ${VERIFICATION_UNSUBSCRIBE_URL:"https://www.phshoesproject.com/unsubscribe-one-click"}
+  linkBaseUrl: ${VERIFICATION_LINK_BASE_URL:https://www.phshoesproject.com/verify/}
+  verificationLink: ${VERIFICATION_LINK_BASE_URL:https://www.phshoesproject.com/verify/}
+  notMeLink: ${VERIFICATION_NOT_ME_URL:https://www.phshoesproject.com/verify/}
+  unsubscribeLink: ${VERIFICATION_UNSUBSCRIBE_URL:https://www.phshoesproject.com/unsubscribe-one-click}
 
 springdoc:
   api-docs.enabled: false
