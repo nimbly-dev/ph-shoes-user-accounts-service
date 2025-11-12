@@ -17,6 +17,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class Accounts_000_001_CreateTables implements UpgradeStep {
 
+    private static final BillingMode BILLING_MODE = BillingMode.PROVISIONED;
+    private static final long DEFAULT_RCU = 1L;
+    private static final long DEFAULT_WCU = 1L;
+
     private final TableCreator tables;
 
     @Override public String service()     { return "accounts_service"; }
@@ -34,11 +38,11 @@ public class Accounts_000_001_CreateTables implements UpgradeStep {
                 accounts,
                 List.of(AttributeDefinition.builder().attributeName(AccountAttrs.PK_USERID).attributeType(S).build()),
                 List.of(KeySchemaElement.builder().attributeName(AccountAttrs.PK_USERID).keyType(KeyType.HASH).build()),
-                /*billingMode*/ null, /*rcu*/ null, /*wcu*/ null
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU
         );
-        // Do NOT enforce billing mode for GSIs; let existing table mode stand (PROVISIONED or PAY_PER_REQUEST)
+        // Keep GSIs aligned with the base table billing mode (PROVISIONED for free-tier eligibility)
         tables.createGsiIfNotExists(accounts, AccountAttrs.GSI_EMAIL, AccountAttrs.EMAIL_HASH, S,
-                /*billingMode*/ null, /*rcu*/ null, /*wcu*/ null);
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU);
 
         // ===== login_sessions =====
         final String sessions = ctx.tbl(SessionAttrs.TABLE);
@@ -46,10 +50,10 @@ public class Accounts_000_001_CreateTables implements UpgradeStep {
                 sessions,
                 List.of(AttributeDefinition.builder().attributeName(SessionAttrs.PK_SESSION).attributeType(S).build()),
                 List.of(KeySchemaElement.builder().attributeName(SessionAttrs.PK_SESSION).keyType(KeyType.HASH).build()),
-                /*billingMode*/ null, null, null
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU
         );
         tables.createGsiIfNotExists(sessions, "gsi_userId", SessionAttrs.USER_ID, S,
-                /*billingMode*/ null, null, null);
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU);
         tables.enableTtlIfDisabled(sessions, SessionAttrs.EXPIRES_AT);
 
         // ===== account_verifications =====
@@ -58,12 +62,12 @@ public class Accounts_000_001_CreateTables implements UpgradeStep {
                 verifs,
                 List.of(AttributeDefinition.builder().attributeName(VerificationAttrs.PK_VERIFICATION_ID).attributeType(S).build()),
                 List.of(KeySchemaElement.builder().attributeName(VerificationAttrs.PK_VERIFICATION_ID).keyType(KeyType.HASH).build()),
-                /*billingMode*/ null, null, null
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU
         );
         tables.createGsiIfNotExists(verifs, "gsi_userId", VerificationAttrs.USER_ID, S,
-                /*billingMode*/ null, null, null);
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU);
         tables.createGsiIfNotExists(verifs, VerificationAttrs.GSI_EMAIL, VerificationAttrs.EMAIL_HASH, S,
-                /*billingMode*/ null, null, null);
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU);
         tables.enableTtlIfDisabled(verifs, VerificationAttrs.EXPIRES_AT);
 
         // ===== email_suppressions =====
@@ -72,7 +76,7 @@ public class Accounts_000_001_CreateTables implements UpgradeStep {
                 suppressions,
                 List.of(AttributeDefinition.builder().attributeName(SuppressionAttrs.PK_EMAIL_HASH).attributeType(S).build()),
                 List.of(KeySchemaElement.builder().attributeName(SuppressionAttrs.PK_EMAIL_HASH).keyType(KeyType.HASH).build()),
-                /*billingMode*/ null, null, null
+                BILLING_MODE, DEFAULT_RCU, DEFAULT_WCU
         );
         tables.enableTtlIfDisabled(suppressions, SuppressionAttrs.EXPIRES_AT);
     }
