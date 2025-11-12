@@ -5,7 +5,9 @@ WORKDIR /workspace
 # GitHub Packages credentials (injected via build args/env during CI/CD)
 ARG GH_ACTOR
 ARG GH_PACKAGES_TOKEN
+ARG MAVEN_ACTIVE_PROFILES=prod
 ENV MAVEN_SETTINGS_PATH=/tmp/maven-settings.xml
+ENV SPRING_PROFILES_ACTIVE=${MAVEN_ACTIVE_PROFILES}
 
 # Configure Maven to authenticate against the private GitHub repositories
 RUN printf '%s\n' \
@@ -27,12 +29,12 @@ RUN printf '%s\n' \
 
 # Cache dependencies first
 COPY pom.xml .
-RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -DskipTests dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -P${MAVEN_ACTIVE_PROFILES} -DskipTests dependency:go-offline
 
 # Build
 COPY src ./src
 COPY docs ./docs
-RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -P${MAVEN_ACTIVE_PROFILES} -DskipTests package
 
 # ---------- Runtime stage ----------
 FROM amazoncorretto:21-alpine AS runtime
