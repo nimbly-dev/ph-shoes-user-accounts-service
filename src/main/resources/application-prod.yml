@@ -50,6 +50,7 @@ logging:
     root: INFO
 
 notification:
+  provider: ses
   transport: sesv2
   email:
     from: "PH Shoes <no-reply@phshoesproject.com>"
