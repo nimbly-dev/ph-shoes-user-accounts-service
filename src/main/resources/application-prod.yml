@@ -5,8 +5,8 @@ app:
       - "https://www.phshoesproject.com"
       - "https://ph-shoes-frontend.onrender.com"
     allowed-methods: [GET,POST,PUT,PATCH,DELETE,OPTIONS]
-    allowed-headers: [Authorization,Content-Type]
-    exposed-headers: [Authorization,Content-Type]
+    allowed-headers: [Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post]
+    exposed-headers: [Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post]
     allow-credentials: true
     max-age: 3600
   frontend:
