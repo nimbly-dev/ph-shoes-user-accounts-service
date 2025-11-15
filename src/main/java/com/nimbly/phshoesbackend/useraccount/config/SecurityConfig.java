@@ -70,6 +70,7 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/actuator/health"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/system/status").permitAll()
 
                         // Everything else
                         .anyRequest().authenticated()

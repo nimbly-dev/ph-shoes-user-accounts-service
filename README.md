@@ -40,11 +40,12 @@ docker compose -f docker-compose.dev.yml down
 
 Base path: `/api/v1/user-accounts`
 
-| Method | Path                   | Purpose                   |
-| -----: | ---------------------- | ------------------------- |
-|   POST | `/register`            | Create account            |
-|    GET | `/verify?token=...`    | Verify via email link     |
-|   POST | `/verification/resend` | Resend verification email |
+| Method | Path                   | Purpose                                      |
+| -----: | ---------------------- | ---------------------------------------------|
+|   POST | `/`                    | Create account (preferred)                   |
+|   POST | `/register`           | Legacy alias for older clients (still open)  |
+|    GET | `/verify?token=...`    | Verify via email link                        |
+|   POST | `/verification/resend` | Resend verification email                    |
 
 > In dev, emails are captured by **MailHog** (open the UI to see the message + link).
 

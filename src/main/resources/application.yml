@@ -98,6 +98,16 @@ schema:
     serviceName: accounts_service
 
 phshoes:
+  status:
+    enabled: true
+    path: /system/status
+    service-id: user-accounts
+    display-name: User Accounts Service
+    environment: ${APP_ENV:local}
+    version: ${APP_VERSION:local}
+    description: Handles registration, verification, and suppression workflows.
+    metadata:
+      tier: backend
   api:
     rate-limit:
       enabled: true
@@ -126,3 +136,12 @@ phshoes:
             enabled: true
             limit: 3
             window: 1h
+        - name: status-health
+          pattern: /api/v1/system/status
+          methods: [GET]
+          global:
+            enabled: false
+          per-ip:
+            enabled: false
+          per-user:
+            enabled: false
