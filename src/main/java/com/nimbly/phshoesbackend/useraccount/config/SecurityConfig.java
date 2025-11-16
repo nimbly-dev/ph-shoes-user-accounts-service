@@ -50,6 +50,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/user-accounts/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/accounts").permitAll()
 
+                        // SES -> SNS webhooks (signature + topic validation executed in SesWebhookProcessor)
+                        .requestMatchers(HttpMethod.POST, "/internal/webhooks/ses").permitAll()
+
                         // Public endpoints (account unsubscribe/resubscribe/status)
                         .requestMatchers("/user-accounts/unsubscribe").permitAll()
                         .requestMatchers("/user-accounts/subscribe").permitAll()

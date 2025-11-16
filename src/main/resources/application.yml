@@ -60,6 +60,11 @@ notification:
     region: ${AWS_REGION:ap-southeast-1}
     endpoint: ${aws.endpoint}
     configurationSet:
+    webhook:
+      enabled: true
+      verify-signature: ${SES_WEBHOOK_VERIFY_SIGNATURE:true}
+      auto-confirm-subscriptions: ${SES_WEBHOOK_AUTO_CONFIRM:true}
+      allowed-topics: "${SES_WEBHOOK_ALLOWED_TOPICS:*}"
 
 verification:
   ttlSeconds: 900
