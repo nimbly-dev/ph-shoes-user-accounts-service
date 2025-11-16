@@ -69,6 +69,7 @@ notification:
     listUnsubscribePost: "List-Unsubscribe=One-Click"
   ses:
     webhook:
+      enabled: true
       verify-signature: false
       auto-confirm-subscriptions: false
       allowed-topics: "*"
