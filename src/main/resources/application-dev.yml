@@ -67,6 +67,11 @@ notification:
     subjectPrefix: "[PH-Shoes DEV]"
     listUnsubscribe: "<mailto:unsubscribe@local.test>"
     listUnsubscribePost: "List-Unsubscribe=One-Click"
+  ses:
+    webhook:
+      verify-signature: false
+      auto-confirm-subscriptions: false
+      allowed-topics: "*"
 
 verification:
   ttlSeconds: 900
