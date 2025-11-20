@@ -29,11 +29,13 @@ RUN printf '%s\n' \
 
 # Cache dependencies first
 COPY pom.xml .
+COPY ph-shoes-user-accounts-service-core/pom.xml ph-shoes-user-accounts-service-core/pom.xml
+COPY ph-shoes-user-accounts-service-web/pom.xml ph-shoes-user-accounts-service-web/pom.xml
 RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -P${MAVEN_ACTIVE_PROFILES} -DskipTests dependency:go-offline
 
 # Build
-COPY src ./src
-COPY docs ./docs
+COPY ph-shoes-user-accounts-service-core ./ph-shoes-user-accounts-service-core
+COPY ph-shoes-user-accounts-service-web ./ph-shoes-user-accounts-service-web
 RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -P${MAVEN_ACTIVE_PROFILES} -DskipTests package
 
 # ---------- Runtime stage ----------
@@ -53,7 +55,7 @@ USER spring:spring
 WORKDIR ${APP_HOME}
 
 # Copy fat JAR
-COPY --from=build /workspace/target/*.jar app.jar
+COPY --from=build /workspace/ph-shoes-user-accounts-service-web/target/*.jar app.jar
 
 # Expose the runtime port (purely documentation for many platforms)
 EXPOSE ${PORT}

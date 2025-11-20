@@ -14,7 +14,10 @@ RUN mkdir -p /root/.m2 && printf '%s\n' \
   > /root/.m2/settings.xml
 
 COPY pom.xml .
-COPY src ./src
+COPY ph-shoes-user-accounts-service-core/pom.xml ph-shoes-user-accounts-service-core/pom.xml
+COPY ph-shoes-user-accounts-service-web/pom.xml ph-shoes-user-accounts-service-web/pom.xml
+COPY ph-shoes-user-accounts-service-core ./ph-shoes-user-accounts-service-core
+COPY ph-shoes-user-accounts-service-web ./ph-shoes-user-accounts-service-web
 
 EXPOSE 8080
-CMD ["mvn","-U","-Pdev","spring-boot:run","-Dspring-boot.run.profiles=dev","-Dspring-boot.run.fork=false","-Dspring-boot.run.jvmArguments=${JAVA_TOOL_OPTIONS}"]
+CMD ["mvn","-pl","ph-shoes-user-accounts-service-web","-am","-U","-Pdev","spring-boot:run","-Dspring-boot.run.profiles=dev","-Dspring-boot.run.fork=false","-Dspring-boot.run.jvmArguments=${JAVA_TOOL_OPTIONS}"]
