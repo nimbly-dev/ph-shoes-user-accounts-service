@@ -19,6 +19,7 @@
     <name>ph-shoes-user-account-service</name>
     <modules>
         <module>ph-shoes-user-accounts-service-core</module>
+        <module>ph-shoes-user-accounts-service-web</module>
     </modules>
 
     <properties>
