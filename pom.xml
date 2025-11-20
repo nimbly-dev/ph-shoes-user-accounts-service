@@ -25,108 +25,16 @@
     <properties>
 		<java.version>21</java.version>
 		<aws.sdk.version>2.33.1</aws.sdk.version>
-
-		<!-- OpenAPI -->
-		<dto.pkg>com.nimbly.phshoesbackend.useraccount.model</dto.pkg>
-		<!-- Internal artifacts -->
 		<notification.service.api.version>0.0.1-SNAPSHOT</notification.service.api.version>
 		<common.service.api.version>0.0.1-SNAPSHOT</common.service.api.version>
-
-		<openapi.srcDir>${project.basedir}/docs/openapi</openapi.srcDir>
-		<openapi.root>openapi.yaml</openapi.root>
+		<springdoc.version>2.8.14</springdoc.version>
+		<java.jwt.version>4.5.0</java.jwt.version>
+		<jackson.nullable.version>0.2.8</jackson.nullable.version>
+		<swagger.annotations.version>2.2.27</swagger.annotations.version>
 	</properties>
 
 	<dependencies>
-		<!-- Spring Boot basics -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>
-
-		<!-- Configuration metadata (optional but handy) -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-configuration-processor</artifactId>
-			<optional>true</optional>
-		</dependency>
-
-		<!-- Devtools (runtime only; ignored in prod containers unless enabled) -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-devtools</artifactId>
-			<scope>runtime</scope>
-			<optional>true</optional>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-mail</artifactId>
-		</dependency>
-
-		<!-- AWS SDKs used by THIS service (DynamoDB etc.). SES is provided by SES profile only. -->
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>dynamodb</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>dynamodb-enhanced</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>apache-client</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>software.amazon.awssdk</groupId>
-			<artifactId>sesv2</artifactId>
-			<version>${aws.sdk.version}</version>
-		</dependency>
-
-		<!-- JWT -->
-		<dependency>
-			<groupId>com.auth0</groupId>
-			<artifactId>java-jwt</artifactId>
-			<version>4.5.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.openapitools</groupId>
-			<artifactId>jackson-databind-nullable</artifactId>
-			<version>0.2.8</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.8.14</version>
-		</dependency>
-
-		<!-- Notification Core (business service + composition) -->
-		<dependency>
-			<groupId>com.nimbly.phshoesbackend.notification</groupId>
-			<artifactId>ph-shoes-notification-service-core</artifactId>
-			<version>${notification.service.api.version}</version>
-		</dependency>
-
-		<!-- Commons -->
-		<dependency>
-			<groupId>com.nimbly.phshoesbackend.commons</groupId>
-			<artifactId>ph-shoes-services-common-core</artifactId>
-			<version>${common.service.api.version}</version>
-		</dependency>
-
-		<!-- Lombok + tests -->
+		<!-- Shared annotation processors for child modules -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -134,124 +42,85 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
 		</dependency>
 	</dependencies>
 
-	<!-- Provider selection via Maven profiles.
-         Activation strategy:
-         - Pass -Pdev or -Pprod explicitly, OR
-         - Set env var SPRING_PROFILES_ACTIVE=dev/prod (as in docker-compose) -->
-	<profiles>
-		<profile>
-			<id>dev</id>
-			<activation>
-				<property>
-					<name>env.SPRING_PROFILES_ACTIVE</name>
-					<value>dev</value>
-				</property>
-			</activation>
-			<dependencies>
-				<!-- SMTP transport for MailHog -->
-				<dependency>
-					<groupId>com.nimbly.phshoesbackend.notification</groupId>
-					<artifactId>ph-shoes-notification-providers-email-smtp-mailhog</artifactId>
-					<version>${notification.service.api.version}</version>
-				</dependency>
-				<!-- JavaMail sender used by SMTP transport (safe to keep in dev only) -->
-				<dependency>
-					<groupId>org.springframework.boot</groupId>
-					<artifactId>spring-boot-starter-mail</artifactId>
-				</dependency>
-			</dependencies>
-		</profile>
+	<dependencyManagement>
+		<dependencies>
+			<!-- AWS SDK alignment -->
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws.sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
 
-		<profile>
-			<id>prod</id>
-			<activation>
-				<property>
-					<name>env.SPRING_PROFILES_ACTIVE</name>
-					<value>prod</value>
-				</property>
-			</activation>
-			<dependencies>
-				<!-- SESv2 transport for real AWS -->
-				<dependency>
-					<groupId>com.nimbly.phshoesbackend.notification</groupId>
-					<artifactId>ph-shoes-notification-providers-email-ses</artifactId>
-					<version>${notification.service.api.version}</version>
-				</dependency>
-			</dependencies>
-		</profile>
-	</profiles>
+			<!-- Shared libraries -->
+			<dependency>
+				<groupId>com.auth0</groupId>
+				<artifactId>java-jwt</artifactId>
+				<version>${java.jwt.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.openapitools</groupId>
+				<artifactId>jackson-databind-nullable</artifactId>
+				<version>${jackson.nullable.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+				<version>${springdoc.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger.core.v3</groupId>
+				<artifactId>swagger-annotations</artifactId>
+				<version>${swagger.annotations.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger.core.v3</groupId>
+				<artifactId>swagger-core-jakarta</artifactId>
+				<version>${swagger.annotations.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger.core.v3</groupId>
+				<artifactId>swagger-models-jakarta</artifactId>
+				<version>${swagger.annotations.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger.core.v3</groupId>
+				<artifactId>swagger-integration</artifactId>
+				<version>${swagger.annotations.version}</version>
+			</dependency>
+
+			<!-- Internal artifacts -->
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.notification</groupId>
+				<artifactId>ph-shoes-notification-service-core</artifactId>
+				<version>${notification.service.api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.notification</groupId>
+				<artifactId>ph-shoes-notification-providers-email-smtp-mailhog</artifactId>
+				<version>${notification.service.api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.notification</groupId>
+				<artifactId>ph-shoes-notification-providers-email-ses</artifactId>
+				<version>${notification.service.api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.commons</groupId>
+				<artifactId>ph-shoes-services-common-core</artifactId>
+				<version>${common.service.api.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<build>
 		<plugins>
-			<plugin>
-				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.3.1</version>
-				<executions>
-					<execution>
-						<id>filter-openapi-yaml</id>
-						<phase>generate-sources</phase>
-						<goals><goal>copy-resources</goal></goals>
-						<configuration>
-							<outputDirectory>${project.build.directory}/openapi-filtered</outputDirectory>
-							<resources>
-								<resource>
-									<directory>${openapi.srcDir}</directory>
-									<filtering>true</filtering>
-									<includes>
-										<include>**/*.yaml</include>
-									</includes>
-								</resource>
-							</resources>
-							<delimiters><delimiter>${*}</delimiter></delimiters>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-
-			<plugin>
-				<groupId>org.openapitools</groupId>
-				<artifactId>openapi-generator-maven-plugin</artifactId>
-				<version>7.16.0</version>
-				<executions>
-					<execution>
-						<id>openapi-spring</id>
-						<phase>generate-sources</phase>
-						<goals><goal>generate</goal></goals>
-						<configuration>
-							<generatorName>spring</generatorName>
-							<inputSpec>${project.build.directory}/openapi-filtered/${openapi.root}</inputSpec>
-							<output>${project.build.directory}/generated-sources/openapi</output>
-
-							<!-- Keep only API interfaces; no generated model classes -->
-							<generateApis>true</generateApis>
-							<generateModels>true</generateModels>
-							<generateApiTests>false</generateApiTests>
-							<generateModelTests>false</generateModelTests>
-							<generateApiDocumentation>false</generateApiDocumentation>
-							<generateModelDocumentation>false</generateModelDocumentation>
-
-							<apiPackage>com.nimbly.phshoesbackend.useraccounts.api</apiPackage>
-							<modelPackage>com.nimbly.phshoesbackend.useraccounts.model</modelPackage>
-
-							<configOptions>
-								<useSpringBoot3>true</useSpringBoot3>
-								<useJakartaEe>true</useJakartaEe>
-								<useTags>true</useTags>
-								<interfaceOnly>true</interfaceOnly>
-								<useBeanValidation>true</useBeanValidation>
-								<useAbstractClassForAllOf>false</useAbstractClassForAllOf>
-							</configOptions>
-
-							<addCompileSourceRoot>true</addCompileSourceRoot>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -268,19 +137,6 @@
 							<artifactId>spring-boot-configuration-processor</artifactId>
 						</path>
 					</annotationProcessorPaths>
-				</configuration>
-			</plugin>
-
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</exclude>
-					</excludes>
 				</configuration>
 			</plugin>
 		</plugins>

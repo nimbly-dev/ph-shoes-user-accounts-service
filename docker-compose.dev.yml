@@ -63,15 +63,16 @@ services:
       SPRING_DEVTOOLS_RESTART_ADDITIONAL_PATHS: src/main/java,src/main/resources
     volumes:
       - ./:/app
-      - "${HOME}/.m2/settings.xml:/root/.m2/settings.xml:ro"
+      - "${HOME}/.m2:/root/.m2"
     command: >
-      bash -lc 'set -euo pipefail; 
-        mvn -U -Pdev -DskipTests=true clean generate-sources; 
-        ls -lah target/openapi-filtered; 
-        mvn -U -Pdev -DskipTests=true spring-boot:run 
-          -Dspring-boot.run.profiles=dev 
-          -Dspring-boot.run.fork=false 
-          -Dopenapi.docs.url=http://localhost:8082/v3/api-docs.yaml'
+      bash -lc "set -euo pipefail;
+        mvn -s .mvn/settings.xml -pl ph-shoes-user-accounts-service-core -am -U -Pdev -DskipTests=true clean install -q &&
+        cd ph-shoes-user-accounts-service-web &&
+        mvn -s ../.mvn/settings.xml -am -U -Pdev -DskipTests=true spring-boot:run \
+          -Dspring-boot.run.profiles=dev \
+          -Dspring-boot.run.fork=false \
+          -Dspring-boot.run.jvmArguments=\"${JAVA_TOOL_OPTIONS}\" \
+          -Dopenapi.docs.url=http://localhost:8082/v3/api-docs.yaml"
     depends_on:
       localstack:
         condition: service_healthy
