@@ -15,9 +15,13 @@
 	<groupId>com.nimbly.phshoesbackend.useraccount</groupId>
 	<artifactId>ph-shoes-user-account-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>ph-shoes-user-account-service</name>
+    <packaging>pom</packaging>
+    <name>ph-shoes-user-account-service</name>
+    <modules>
+        <module>ph-shoes-user-accounts-service-core</module>
+    </modules>
 
-	<properties>
+    <properties>
 		<java.version>21</java.version>
 		<aws.sdk.version>2.33.1</aws.sdk.version>
 

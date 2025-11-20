@@ -107,7 +107,7 @@ phshoes:
     enabled: true
     path: /system/status
     service-id: user-accounts
-    display-name: User Accounts Service
+    display-name: User Accounts
     environment: ${APP_ENV:local}
     version: ${APP_VERSION:local}
     description: Handles registration, verification, and suppression workflows.
