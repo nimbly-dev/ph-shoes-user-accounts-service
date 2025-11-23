@@ -5,9 +5,8 @@ on:
     branches: [ master ]
     paths:
       - 'ph-shoes-user-accounts-service-core/**'
-      - 'ph-shoes-user-accounts-service/pom.xml'
+      - 'pom.xml'
       - '.github/workflows/publish-core.yml'
-      - 'ph-shoes-services/ph-shoes-user-accounts-service/.github/workflows/publish-core.yml'
   workflow_dispatch:
 
 jobs:
@@ -50,5 +49,5 @@ jobs:
           EOF
 
       - name: Build and publish core
-        working-directory: ph-shoes-services/ph-shoes-user-accounts-service
+        working-directory: .
         run: mvn -pl ph-shoes-user-accounts-service-core -am clean deploy
