@@ -50,4 +50,4 @@ jobs:
 
       - name: Build and publish core
         working-directory: .
-        run: mvn -pl ph-shoes-user-accounts-service-core -am clean deploy
+        run: mvn -pl ph-shoes-user-accounts-service-core -am clean deploy -DaltDeploymentRepository=github-nimbly-useraccounts::default::https://maven.pkg.github.com/nimbly-dev/ph-shoes-user-accounts-service
