@@ -69,6 +69,7 @@ notification:
     subjectPrefix: "[PH-Shoes DEV]"
     listUnsubscribe: "<mailto:unsubscribe@local.test>"
     listUnsubscribePost: "List-Unsubscribe=One-Click"
+    unsubscribeLink: ${NOTIFICATION_UNSUBSCRIBE_LINK:http://localhost:8082/api/v1/user-accounts/unsubscribe}
   ses:
     webhook:
       enabled: true
@@ -80,7 +81,7 @@ verification:
   ttlSeconds: 900
   verificationLink: http://localhost:8082/api/v1/verify/email
   notMeLink: http://localhost:8082/api/v1/verify/email/not-me
-  unsubscribeLink: http://localhost:8082/api/v1/user-accounts/unsubscribe
+  unsubscribeLink: ${NOTIFICATION_UNSUBSCRIBE_LINK:http://localhost:8082/api/v1/user-accounts/unsubscribe}
 
 springdoc:
   api-docs:
