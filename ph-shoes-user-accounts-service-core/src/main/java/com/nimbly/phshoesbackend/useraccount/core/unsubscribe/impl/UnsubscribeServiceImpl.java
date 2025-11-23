@@ -96,7 +96,6 @@ public class UnsubscribeServiceImpl implements UnsubscribeService {
     private Optional<String> generateUnsubscribeUrl(String emailHash) {
         String baseUrl = firstNonBlank(
                 emailProps.getUnsubscribeLink(),
-                verificationProps.getUnsubscribeLink(),
                 deriveUnsubscribeBaseFromVerificationLink());
         if (baseUrl == null) {
             return Optional.empty();
