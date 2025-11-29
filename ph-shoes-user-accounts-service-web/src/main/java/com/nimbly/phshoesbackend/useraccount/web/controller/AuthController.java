@@ -2,12 +2,12 @@ package com.nimbly.phshoesbackend.useraccount.web.controller;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbly.phshoesbackend.useraccount.core.auth.AuthService;
-import com.nimbly.phshoesbackend.useraccount.core.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccounts.api.AuthApi;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
+import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,7 @@ import java.util.Locale;
 public class AuthController implements AuthApi {
 
     private final AuthService authService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenService jwtTokenService;
     private final NativeWebRequest nativeWebRequest;
 
     @Override
@@ -53,7 +53,7 @@ public class AuthController implements AuthApi {
             throw new InvalidCredentialsException();
         }
         String token = authorizationHeader.substring(7).trim();
-        DecodedJWT decoded = jwtTokenProvider.parseAccess(token);
+        DecodedJWT decoded = parseOrThrow(token);
 
         TokenContentResponse res = new TokenContentResponse();
         res.setSub(decoded.getSubject());
@@ -85,5 +85,13 @@ public class AuthController implements AuthApi {
         h = request.getHeader("X-Real-IP");
         if (h != null && !h.isBlank()) return h.trim();
         return request.getRemoteAddr();
+    }
+
+    private DecodedJWT parseOrThrow(String token) {
+        try {
+            return jwtTokenService.parseAccess(token);
+        } catch (JwtTokenService.JwtVerificationException ex) {
+            throw new InvalidCredentialsException();
+        }
     }
 }

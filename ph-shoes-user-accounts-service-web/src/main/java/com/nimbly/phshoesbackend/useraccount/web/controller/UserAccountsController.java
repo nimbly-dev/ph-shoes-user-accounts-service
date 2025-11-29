@@ -1,16 +1,16 @@
 package com.nimbly.phshoesbackend.useraccount.web.controller;
 
+import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.AccountBlockedException;
-import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
-import com.nimbly.phshoesbackend.useraccounts.api.UserAccountsApi;
-import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
-
-import com.nimbly.phshoesbackend.useraccount.core.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.useraccount.core.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccount.core.verification.VerificationService;
+import com.nimbly.phshoesbackend.useraccounts.api.UserAccountsApi;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
+import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
+import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +29,7 @@ public class UserAccountsController implements UserAccountsApi {
     private final UserAccountsService accountService;
     private final VerificationService verificationService;
     private final SuppressionService suppressionService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenService jwtTokenService;
     private final NativeWebRequest nativeWebRequest;
 
     // POST /api/v1/user-accounts
@@ -78,9 +78,17 @@ public class UserAccountsController implements UserAccountsApi {
     @Override
     public ResponseEntity<Void> deleteMyAccount() {
         String authorizationHeader = nativeWebRequest.getHeader(HttpHeaders.AUTHORIZATION);
-        String userId = jwtTokenProvider.userIdFromAuthorizationHeader(authorizationHeader);
+        String userId = extractUserId(authorizationHeader);
         accountService.deleteOwnAccount(userId);
         log.info("user.delete completed userId={}", userId);
         return ResponseEntity.noContent().build();
+    }
+
+    private String extractUserId(String authorizationHeader) {
+        try {
+            return jwtTokenService.userIdFromAuthorizationHeader(authorizationHeader);
+        } catch (JwtTokenService.JwtVerificationException ex) {
+            throw new InvalidCredentialsException();
+        }
     }
 }

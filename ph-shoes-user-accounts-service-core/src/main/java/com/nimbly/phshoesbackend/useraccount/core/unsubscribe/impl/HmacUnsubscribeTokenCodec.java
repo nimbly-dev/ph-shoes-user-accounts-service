@@ -2,10 +2,10 @@ package com.nimbly.phshoesbackend.useraccount.core.unsubscribe.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbly.phshoesbackend.useraccount.core.config.props.AppAuthProps;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.core.exception.InvalidVerificationTokenException;
 import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtSecurityProperties;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeTokenCodec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +38,7 @@ public class HmacUnsubscribeTokenCodec implements UnsubscribeTokenCodec {
     );
 
     private final AppVerificationProps verificationProps;
-    private final AppAuthProps appAuthProps;
+    private final JwtSecurityProperties jwtSecurityProperties;
     private final EmailCrypto emailCrypto;
 
     @Override
@@ -129,8 +129,9 @@ public class HmacUnsubscribeTokenCodec implements UnsubscribeTokenCodec {
     private List<String> candidateSecrets() {
         List<String> secrets = new ArrayList<>();
         secrets.add(verificationProps.getSecret());
-        if (appAuthProps.getSecret() != null && !appAuthProps.getSecret().isBlank()) {
-            secrets.add(appAuthProps.getSecret());
+        String jwtSecret = jwtSecurityProperties.getSecret();
+        if (jwtSecret != null && !jwtSecret.isBlank()) {
+            secrets.add(jwtSecret);
         }
         return secrets;
     }

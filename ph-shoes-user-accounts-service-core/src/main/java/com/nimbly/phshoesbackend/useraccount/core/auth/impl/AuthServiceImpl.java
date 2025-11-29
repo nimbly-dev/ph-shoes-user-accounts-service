@@ -1,17 +1,17 @@
 package com.nimbly.phshoesbackend.useraccount.core.auth.impl;
 
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.nimbly.phshoesbackend.useraccount.core.auth.AuthService;
+import com.nimbly.phshoesbackend.useraccount.core.auth.exception.AccountLockedException;
+import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccount.core.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.core.model.Account;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.SessionRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
-import com.nimbly.phshoesbackend.useraccount.core.auth.AuthService;
-import com.nimbly.phshoesbackend.useraccount.core.auth.JwtTokenProvider;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.AccountLockedException;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
-import com.nimbly.phshoesbackend.useraccount.core.config.props.AppAuthProps;
-import com.nimbly.phshoesbackend.useraccount.core.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.core.exception.EmailNotVerifiedException;
 import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,8 +31,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final AccountRepository accounts;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final AppAuthProps authProps;
+    private final JwtTokenService jwtTokenService;
     private final LockoutProps lockProps;
     private final EmailCrypto emailCrypto;
     private final SessionRepository sessionRepository;
@@ -99,8 +98,8 @@ public class AuthServiceImpl implements AuthService {
 
             recordSuccessfulLogin(acc, ip, userAgent);
 
-            final String token = jwtTokenProvider.issueAccessToken(acc.getUserId(), normalizedEmail);
-            var decoded = jwtTokenProvider.parseAccess(token);
+            final String token = jwtTokenService.issueAccessToken(acc.getUserId(), normalizedEmail);
+            var decoded = jwtTokenService.parseAccess(token);
             String jti = decoded.getId();
             if (jti == null || jti.isBlank() || decoded.getExpiresAt() == null) {
                 log.error("auth.login token_missing_jti_or_exp userId={}", acc.getUserId());
@@ -111,7 +110,7 @@ public class AuthServiceImpl implements AuthService {
 
             TokenResponse res = new TokenResponse();
             res.setAccessToken(token);
-            res.setExpiresIn((long) authProps.getAccessTtlSeconds());
+            res.setExpiresIn((long) jwtTokenService.getAccessTtlSeconds());
 
             log.info("auth.login success userId={} inMs={}", acc.getUserId(), System.currentTimeMillis() - t0);
             return res;
@@ -130,7 +129,7 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException();
         }
         String token = authorizationHeader.substring(7).trim();
-        var jwt = jwtTokenProvider.parseAccess(token);
+        var jwt = parseOrThrow(token);
 
         String jti = jwt.getId();
         if (jti == null || jti.isBlank()) {
@@ -138,7 +137,9 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException();
         }
 
-        if (!sessionRepository.isSessionActive(jti)) throw new InvalidCredentialsException();
+        if (!sessionRepository.isSessionActive(jti)) {
+            throw new InvalidCredentialsException();
+        }
         sessionRepository.revokeSession(jti);
 
         log.info("auth.logout revoked jti={} sub={}", jti, jwt.getSubject());
@@ -194,5 +195,13 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         return false;
+    }
+
+    private DecodedJWT parseOrThrow(String token) {
+        try {
+            return jwtTokenService.parseAccess(token);
+        } catch (JwtTokenService.JwtVerificationException ex) {
+            throw new InvalidCredentialsException();
+        }
     }
 }

@@ -5,8 +5,9 @@ import com.nimbly.phshoesbackend.useraccount.core.model.Account;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.services.common.core.repository.SuppressionRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
-import com.nimbly.phshoesbackend.useraccount.core.auth.JwtTokenProvider;
 import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
@@ -30,7 +31,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     private final SuppressionRepository suppressionRepository;
     private final VerificationRepository verificationRepository;
     private final EmailCrypto emailCrypto;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenService jwtTokenService;
     private final PasswordEncoder passwordEncoder;
 
     /** Workflow: normalize email -> guard rails -> persist -> respond. */
@@ -54,7 +55,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
     @Override
     public TokenContentResponse getContentFromToken(String authorizationHeader) {
         String token = extractBearer(authorizationHeader);
-        DecodedJWT jwt = jwtTokenProvider.parseAccess(token);
+        DecodedJWT jwt = parseOrThrow(token);
 
         String sub = jwt.getSubject();
         String email = jwt.getClaim("email").asString();
@@ -144,5 +145,16 @@ public class UserAccountsServiceImpl implements UserAccountsService {
             return "(blank)";
         }
         return hash.length() <= 8 ? hash : hash.substring(0, 8);
+    }
+
+    private DecodedJWT parseOrThrow(String token) {
+        if (token == null || token.isBlank()) {
+            throw new InvalidCredentialsException();
+        }
+        try {
+            return jwtTokenService.parseAccess(token);
+        } catch (JwtTokenService.JwtVerificationException ex) {
+            throw new InvalidCredentialsException();
+        }
     }
 }

@@ -40,11 +40,6 @@ server:
     include-stacktrace: never
     include-message: always
 
-jwt:
-  issuer: ph-shoes
-  secret: change-me-dev-only
-  accessTtlSeconds: 3600
-
 auth:
   lock:
     maxFailures: 5
@@ -94,6 +89,12 @@ schema:
   auto-create: true
 
 phshoes:
+  security:
+    jwt:
+      enabled: true
+      issuer: ph-shoes
+      secret: change-me-dev-only
+      access-ttl-seconds: 3600
   api:
     rate-limit:
       enabled: false

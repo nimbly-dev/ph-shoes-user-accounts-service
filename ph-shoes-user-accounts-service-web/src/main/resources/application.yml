@@ -17,11 +17,6 @@ app:
     tables:
       email_suppression: email_suppressions
 
-jwt:
-  issuer: ${JWT_ISSUER:ph-shoes}
-  secret: ${JWT_SECRET:change-me-for-dev}
-  accessTtlSeconds: ${JWT_ACCESS_TTL_SECONDS:3600}
-
 security:
   email:
     hmac-pepper-b64: ${HMAC_PEPPER_B64}
@@ -104,6 +99,12 @@ schema:
     serviceName: accounts_service
 
 phshoes:
+  security:
+    jwt:
+      enabled: true
+      issuer: ${JWT_ISSUER:ph-shoes}
+      secret: ${JWT_SECRET:change-me-for-dev}
+      access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
   status:
     enabled: true
     path: /system/status
