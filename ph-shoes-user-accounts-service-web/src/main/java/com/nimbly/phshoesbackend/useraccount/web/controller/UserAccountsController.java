@@ -10,7 +10,8 @@ import com.nimbly.phshoesbackend.useraccounts.api.UserAccountsApi;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -87,7 +88,7 @@ public class UserAccountsController implements UserAccountsApi {
     private String extractUserId(String authorizationHeader) {
         try {
             return jwtTokenService.userIdFromAuthorizationHeader(authorizationHeader);
-        } catch (JwtTokenService.JwtVerificationException ex) {
+        } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
     }

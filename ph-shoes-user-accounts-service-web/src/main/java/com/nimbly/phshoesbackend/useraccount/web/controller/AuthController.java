@@ -7,7 +7,8 @@ import com.nimbly.phshoesbackend.useraccounts.api.AuthApi;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -90,7 +91,7 @@ public class AuthController implements AuthApi {
     private DecodedJWT parseOrThrow(String token) {
         try {
             return jwtTokenService.parseAccess(token);
-        } catch (JwtTokenService.JwtVerificationException ex) {
+        } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
     }

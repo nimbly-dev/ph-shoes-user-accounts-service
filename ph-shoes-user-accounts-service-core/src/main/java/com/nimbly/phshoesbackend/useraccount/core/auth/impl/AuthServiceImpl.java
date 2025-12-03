@@ -10,8 +10,9 @@ import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.SessionRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.core.exception.EmailNotVerifiedException;
-import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
 import lombok.RequiredArgsConstructor;
@@ -200,7 +201,7 @@ public class AuthServiceImpl implements AuthService {
     private DecodedJWT parseOrThrow(String token) {
         try {
             return jwtTokenService.parseAccess(token);
-        } catch (JwtTokenService.JwtVerificationException ex) {
+        } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
     }

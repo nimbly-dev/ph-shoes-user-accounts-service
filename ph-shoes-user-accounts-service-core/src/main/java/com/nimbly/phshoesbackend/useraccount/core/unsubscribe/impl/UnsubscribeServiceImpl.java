@@ -1,7 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.core.unsubscribe.impl;
 
 import com.nimbly.phshoesbackend.notification.core.model.props.NotificationEmailProps;
-import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
+import com.nimbly.phshoesbackend.commons.core.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.AppVerificationProps;
 import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeService;
