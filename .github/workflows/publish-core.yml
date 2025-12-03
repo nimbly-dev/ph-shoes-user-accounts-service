@@ -35,7 +35,7 @@ jobs:
                 <password>${GH_PACKAGES_TOKEN}</password>
               </server>
               <server>
-                <id>github-nimbly-commons</id>
+                <id>github-nimbly-starter-services</id>
                 <username>${GH_ACTOR}</username>
                 <password>${GH_PACKAGES_TOKEN}</password>
               </server>

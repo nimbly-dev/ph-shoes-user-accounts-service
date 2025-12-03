@@ -5,7 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.service.AccountSettingsService;
 import com.nimbly.phshoesbackend.useraccounts.api.UserAccountSettingsApi;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -61,7 +62,7 @@ public class UserAccountSettingsController implements UserAccountSettingsApi {
     private String extractUserId(String authorizationHeader) {
         try {
             return jwtTokenService.userIdFromAuthorizationHeader(authorizationHeader);
-        } catch (JwtTokenService.JwtVerificationException ex) {
+        } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
     }

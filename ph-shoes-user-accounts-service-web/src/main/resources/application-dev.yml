@@ -11,13 +11,24 @@ app:
 feature:
   suppressionCheckEnabled: true
 
-security:
-  email:
-    hmac-pepper-b64: ${HMAC_PEPPER_B64:FVl9pBApQ2LgzIvgi7P/zMcc6BKoopvS}
-    aes-key-b64:  ${AES_KEY_B64:8c2So7nkW7FInwpQfQYsk6NHg+9FJPxGSd701VXjSnQ=}
-    legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
-  auth:
-    dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH:$2a$10$u5m1eR4h1Vn0l2G0pC7l3u7b9vXl9lN8mTt4l7t0rQkN1G0u8Hh6C}
+phshoes:
+  security:
+    email:
+      hmac-pepper-b64: ${HMAC_PEPPER_B64:FVl9pBApQ2LgzIvgi7P/zMcc6BKoopvS}
+      aes-key-b64:  ${AES_KEY_B64:8c2So7nkW7FInwpQfQYsk6NHg+9FJPxGSd701VXjSnQ=}
+      legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
+    auth:
+      dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH:$2a$10$u5m1eR4h1Vn0l2G0pC7l3u7b9vXl9lN8mTt4l7t0rQkN1G0u8Hh6C}
+    jwt:
+      enabled: true
+      issuer: ph-shoes
+      secret: change-me-dev-only
+      access-ttl-seconds: 3600
+  suppression:
+    table-name: ${app.dynamo.tables.email_suppression:email_suppressions}
+  api:
+    rate-limit:
+      enabled: false
 
 aws:
   region: ap-southeast-1
@@ -88,13 +99,3 @@ springdoc:
 schema:
   auto-create: true
 
-phshoes:
-  security:
-    jwt:
-      enabled: true
-      issuer: ph-shoes
-      secret: change-me-dev-only
-      access-ttl-seconds: 3600
-  api:
-    rate-limit:
-      enabled: false

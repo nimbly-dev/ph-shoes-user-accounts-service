@@ -26,13 +26,6 @@ spring:
       ddl-auto: none
     properties: { }
 
-security:
-  email:
-    hmac-pepper-b64: ${HMAC_PEPPER_B64}
-    aes-key-b64: ${AES_KEY_B64}
-  auth:
-    dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH}
-
 management:
   endpoints:
     web:
@@ -83,6 +76,20 @@ schema:
   auto-create: true
 
 phshoes:
+  security:
+    email:
+      hmac-pepper-b64: ${HMAC_PEPPER_B64}
+      aes-key-b64: ${AES_KEY_B64}
+      legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
+    auth:
+      dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH}
+    jwt:
+      enabled: true
+      issuer: ${JWT_ISSUER:ph-shoes}
+      secret: ${JWT_SECRET:?JWT_SECRET required}
+      access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
+  suppression:
+    table-name: ${app.dynamo.tables.email_suppression:email_suppressions}
   status:
     enabled: true
     path: /system/status

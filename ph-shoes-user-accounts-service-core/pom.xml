@@ -15,7 +15,7 @@
 
     <properties>
         <spring-boot.repackage.skip>true</spring-boot.repackage.skip>
-        <openapi.srcDir>${project.basedir}/docs/openapi</openapi.srcDir>
+        <openapi.srcDir>${project.parent.basedir}/docs/openapi</openapi.srcDir>
         <openapi.root>openapi.yaml</openapi.root>
     </properties>
 
@@ -64,8 +64,12 @@
             <artifactId>ph-shoes-notification-service-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.nimbly.phshoesbackend.commons</groupId>
-            <artifactId>ph-shoes-services-common-core</artifactId>
+            <groupId>com.nimbly.phshoesbackend.starters</groupId>
+            <artifactId>ph-shoes-starter-services-common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nimbly.phshoesbackend.starters</groupId>
+            <artifactId>ph-shoes-starter-services-common-security</artifactId>
         </dependency>
         <dependency>
             <groupId>io.swagger.core.v3</groupId>

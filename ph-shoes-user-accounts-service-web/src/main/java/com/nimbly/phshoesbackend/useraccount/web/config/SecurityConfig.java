@@ -1,7 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.web.config;
 
 import com.nimbly.phshoesbackend.useraccount.web.config.props.CorsProps;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtAuthenticationFilter;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;

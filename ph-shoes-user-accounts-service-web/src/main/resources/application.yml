@@ -17,14 +17,6 @@ app:
     tables:
       email_suppression: email_suppressions
 
-security:
-  email:
-    hmac-pepper-b64: ${HMAC_PEPPER_B64}
-    aes-key-b64: ${AES_KEY_B64}
-    legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
-  auth:
-    dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH:$2a$10$u5m1eR4h1Vn0l2G0pC7l3u7b9vXl9lN8mTt4l7t0rQkN1G0u8Hh6C}
-
 spring:
   application:
     name: ph-shoes-user-account-service
@@ -99,12 +91,23 @@ schema:
     serviceName: accounts_service
 
 phshoes:
+  dynamo:
+    migrations:
+      enabled: true
   security:
+    email:
+      hmac-pepper-b64: ${HMAC_PEPPER_B64}
+      aes-key-b64: ${AES_KEY_B64}
+      legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
+    auth:
+      dummy-bcrypt-hash: ${DUMMY_BCRYPT_HASH:$2a$10$u5m1eR4h1Vn0l2G0pC7l3u7b9vXl9lN8mTt4l7t0rQkN1G0u8Hh6C}
     jwt:
       enabled: true
       issuer: ${JWT_ISSUER:ph-shoes}
       secret: ${JWT_SECRET:change-me-for-dev}
       access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
+  suppression:
+    table-name: ${app.dynamo.tables.email_suppression:email_suppressions}
   status:
     enabled: true
     path: /system/status

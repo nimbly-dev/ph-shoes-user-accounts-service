@@ -1,11 +1,11 @@
 package com.nimbly.phshoesbackend.useraccount.core.migrations.steps;
 
-import com.nimbly.phshoesbackend.services.common.core.migrations.UpgradeContext;
-import com.nimbly.phshoesbackend.services.common.core.migrations.UpgradeStep;
-import com.nimbly.phshoesbackend.services.common.core.migrations.utility.TableCreator;
+import com.nimbly.phshoesbackend.commons.core.migrations.UpgradeContext;
+import com.nimbly.phshoesbackend.commons.core.migrations.UpgradeStep;
+import com.nimbly.phshoesbackend.commons.core.migrations.utility.TableCreator;
 import com.nimbly.phshoesbackend.useraccount.core.model.dynamo.AccountAttrs;
 import com.nimbly.phshoesbackend.useraccount.core.model.dynamo.SessionAttrs;
-import com.nimbly.phshoesbackend.services.common.core.model.dynamo.SuppressionAttrs;
+import com.nimbly.phshoesbackend.commons.core.model.dynamo.SuppressionAttrs;
 import com.nimbly.phshoesbackend.useraccount.core.model.dynamo.VerificationAttrs;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

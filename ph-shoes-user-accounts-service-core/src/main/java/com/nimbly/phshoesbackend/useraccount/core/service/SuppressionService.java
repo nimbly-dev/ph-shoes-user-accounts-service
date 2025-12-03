@@ -1,7 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.core.service;
 
 
-import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
+import com.nimbly.phshoesbackend.commons.core.model.SuppressionReason;
 
 public interface SuppressionService {
     boolean shouldBlock(String emailPlain);
