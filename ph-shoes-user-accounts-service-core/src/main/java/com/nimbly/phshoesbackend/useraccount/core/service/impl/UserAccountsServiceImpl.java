@@ -3,10 +3,11 @@ package com.nimbly.phshoesbackend.useraccount.core.service.impl;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbly.phshoesbackend.useraccount.core.model.Account;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
-import com.nimbly.phshoesbackend.services.common.core.repository.SuppressionRepository;
+import com.nimbly.phshoesbackend.commons.core.repository.SuppressionRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
-import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
-import com.nimbly.phshoesbackend.services.common.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
+import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
@@ -153,7 +154,7 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         }
         try {
             return jwtTokenService.parseAccess(token);
-        } catch (JwtTokenService.JwtVerificationException ex) {
+        } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
     }

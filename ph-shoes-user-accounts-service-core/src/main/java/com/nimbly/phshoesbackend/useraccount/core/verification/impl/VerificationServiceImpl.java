@@ -6,7 +6,7 @@ import com.nimbly.phshoesbackend.notification.core.model.dto.SendResult;
 import com.nimbly.phshoesbackend.notification.core.model.props.NotificationEmailProps;
 import com.nimbly.phshoesbackend.notification.core.service.NotificationService;
 import com.nimbly.phshoesbackend.useraccount.core.model.Account;
-import com.nimbly.phshoesbackend.services.common.core.model.SuppressionReason;
+import com.nimbly.phshoesbackend.commons.core.model.SuppressionReason;
 import com.nimbly.phshoesbackend.useraccount.core.model.VerificationEntry;
 import com.nimbly.phshoesbackend.useraccount.core.model.VerificationStatus;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
@@ -16,7 +16,7 @@ import com.nimbly.phshoesbackend.useraccount.core.exception.NotificationSendExce
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationNotFoundException;
-import com.nimbly.phshoesbackend.services.common.core.security.EmailCrypto;
+import com.nimbly.phshoesbackend.commons.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeService;
 import com.nimbly.phshoesbackend.useraccount.core.verification.VerificationService;

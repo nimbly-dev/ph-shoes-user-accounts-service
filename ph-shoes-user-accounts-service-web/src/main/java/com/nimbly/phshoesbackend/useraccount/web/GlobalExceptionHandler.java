@@ -4,7 +4,7 @@ import com.nimbly.phshoesbackend.useraccount.core.auth.exception.AccountLockedEx
 import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.core.exception.*;
-import com.nimbly.phshoesbackend.services.common.core.api.rate.RateLimitExceededException;
+import com.nimbly.phshoesbackend.commons.core.api.rate.RateLimitExceededException;
 import com.nimbly.phshoesbackend.useraccounts.model.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;

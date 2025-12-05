@@ -6,10 +6,9 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.5</version>
-		<relativePath/>
+		<groupId>com.nimbly.phshoesbackend.starters</groupId>
+		<artifactId>ph-shoes-starter-services</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
 	</parent>
 
 	<groupId>com.nimbly.phshoesbackend.useraccount</groupId>
@@ -22,11 +21,10 @@
         <module>ph-shoes-user-accounts-service-web</module>
     </modules>
 
-    <properties>
+	<properties>
 		<java.version>21</java.version>
-		<aws.sdk.version>2.33.1</aws.sdk.version>
 		<notification.service.api.version>0.0.1-SNAPSHOT</notification.service.api.version>
-		<common.service.api.version>0.0.1-SNAPSHOT</common.service.api.version>
+		<starter.services.version>0.0.1-SNAPSHOT</starter.services.version>
 		<springdoc.version>2.8.14</springdoc.version>
 		<java.jwt.version>4.5.0</java.jwt.version>
 		<jackson.nullable.version>0.2.8</jackson.nullable.version>
@@ -112,9 +110,19 @@
 				<version>${notification.service.api.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>com.nimbly.phshoesbackend.commons</groupId>
-				<artifactId>ph-shoes-services-common-core</artifactId>
-				<version>${common.service.api.version}</version>
+				<groupId>com.nimbly.phshoesbackend.starters</groupId>
+				<artifactId>ph-shoes-starter-services-common-core</artifactId>
+				<version>${starter.services.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.starters</groupId>
+				<artifactId>ph-shoes-starter-services-common-web</artifactId>
+				<version>${starter.services.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nimbly.phshoesbackend.starters</groupId>
+				<artifactId>ph-shoes-starter-services-common-security</artifactId>
+				<version>${starter.services.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -150,8 +158,8 @@
 			<snapshots><enabled>true</enabled></snapshots>
 		</repository>
 		<repository>
-			<id>github-nimbly-commons</id>
-			<url>https://maven.pkg.github.com/nimbly-dev/ph-shoes-services-common</url>
+			<id>github-nimbly-starter-services</id>
+			<url>https://maven.pkg.github.com/nimbly-dev/ph-shoes-starter-services</url>
 			<releases><enabled>true</enabled></releases>
 			<snapshots><enabled>true</enabled></snapshots>
 		</repository>
