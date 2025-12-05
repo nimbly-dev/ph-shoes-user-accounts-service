@@ -31,13 +31,16 @@ public class AccountSettingsServiceImpl implements AccountSettingsService {
     @Override
     public JsonNode getOrInit(String userId) {
         var existing = repo.getSettingsJson(userId);
-        if (existing.isEmpty()) throw new AccountNotFoundException("userId=" + userId);
+        if (existing.isPresent() && existing.get() != null && !existing.get().isBlank()) {
+            return parse(existing.get());
+        }
 
-        if (existing.get() == null || existing.get().isBlank()) {
+        try {
             repo.putSettingsJson(userId, DEFAULT_SETTINGS_JSON);
             return parse(DEFAULT_SETTINGS_JSON);
+        } catch (ConditionalCheckFailedException ex) {
+            throw new AccountNotFoundException("userId=" + userId);
         }
-        return parse(existing.get());
     }
 
     @Override
