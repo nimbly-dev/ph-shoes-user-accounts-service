@@ -10,7 +10,8 @@ import org.springframework.context.annotation.ComponentScan;
 		"com.nimbly.phshoesbackend.useraccount.web",
 		"com.nimbly.phshoesbackend.notification.core",
 		"com.nimbly.phshoesbackend.notification.email.providers",
-		"com.nimbly.phshoesbackend.services.common.core"
+		"com.nimbly.phshoesbackend.commons.core",
+		"com.nimbly.phshoesbackend.commons.web"
 })
 public class PhShoesUserAccountServiceApplication {
 	public static void main(String[] args) {
