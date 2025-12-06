@@ -37,6 +37,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -
 COPY ph-shoes-user-accounts-service-core ./ph-shoes-user-accounts-service-core
 COPY ph-shoes-user-accounts-service-web ./ph-shoes-user-accounts-service-web
 RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -P${MAVEN_ACTIVE_PROFILES} -DskipTests package
+RUN rm -f ${MAVEN_SETTINGS_PATH}
 
 # ---------- Runtime stage ----------
 FROM amazoncorretto:21-alpine AS runtime
