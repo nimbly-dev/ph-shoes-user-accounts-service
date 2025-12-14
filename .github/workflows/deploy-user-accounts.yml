@@ -1,0 +1,96 @@
+name: Build & Publish User Accounts Service
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ph-shoes-user-accounts-service-web/**'
+      - 'ph-shoes-user-accounts-service-core/**'
+      - 'Dockerfile'
+      - 'pom.xml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR Public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f Dockerfile \
+            --build-arg GH_ACTOR=${{ secrets.GH_ACTOR }} \
+            --build-arg GH_PACKAGES_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }} \
+            --no-cache \
+            -t "$ECR_REPOSITORY_URI:$IMAGE_TAG" .
+
+      - name: Push image to ECR Public
+        run: |
+          docker push "$ECR_REPOSITORY_URI:$IMAGE_TAG"
+          echo "Pushed image: $ECR_REPOSITORY_URI:$IMAGE_TAG"
+
+      - name: Remove untagged images from ECR Public
+        run: |
+          set -euo pipefail
+          REPO_NAME="${ECR_REPOSITORY_URI##*/}"
+          echo "Checking for untagged images in $REPO_NAME"
+          DIGESTS=$(aws ecr-public describe-images \
+            --region "$AWS_REGION" \
+            --repository-name "$REPO_NAME" \
+            --query 'imageDetails[?imageTags==null].imageDigest' \
+            --output text)
+          if [ -z "$DIGESTS" ] || [ "$DIGESTS" = "None" ]; then
+            echo "No untagged images found."
+          else
+            for digest in $DIGESTS; do
+              echo "Deleting untagged image $digest"
+              aws ecr-public batch-delete-image \
+                --region "$AWS_REGION" \
+                --repository-name "$REPO_NAME" \
+                --image-ids imageDigest=$digest
+            done
+          fi
+
+      - name: Trigger deployment
+        env:
+          GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+          TARGET_REPO: ${{ github.repository_owner }}/ph-shoes-services-automation
+          IMAGE_URI: ${{ env.ECR_REPOSITORY_URI }}:${{ env.IMAGE_TAG }}
+        run: |
+          echo "Triggering deploy-service for user-accounts with image $IMAGE_URI"
+          set -e
+          response=$(mktemp)
+          status=$(curl -sS -w "%{http_code}" -o "$response" \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_PACKAGES_TOKEN" \
+            https://api.github.com/repos/$TARGET_REPO/dispatches \
+            -d "{\"event_type\":\"deploy-service\",\"client_payload\":{\"service\":\"user-accounts\",\"image_uri\":\"$IMAGE_URI\",\"container_port\":\"8080\",\"desired_count\":\"1\",\"app_version\":\"${{ github.run_number }}\"}}")
+          echo "Dispatch response ($status):"
+          cat "$response"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error ::Failed to trigger deploy-service workflow"
+            exit 1
+          fi
