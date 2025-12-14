@@ -1,0 +1,417 @@
+openapi: 3.1.0
+info:
+  title: PH Shoes — User Accounts API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+
+tags:
+  - name: UserAccounts
+    description: Endpoints for account creation, token introspection, and self-deletion.
+  - name: Auth
+    description: Authentication endpoints (login, token content).
+  - name: Verification
+    description: Email verification and token management workflows.
+  - name: UserAccountSettings
+    description: Manage per-account notification and preference settings.
+  - name: UserAccountsEmailNotification
+    description: Manage email notification unsubscribe/subscribe and suppression status checks.
+
+paths:
+  /user-accounts:
+    post:
+      tags: [UserAccounts]
+      summary: Create account
+      operationId: createUserAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: 'components/schemas/UserAccount.yaml#/components/schemas/CreateUserAccountRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: 'components/schemas/UserAccount.yaml#/components/schemas/CreateUserAccountResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags: [UserAccounts]
+      summary: Token content of the caller
+      operationId: getTokenContent
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: 'components/schemas/Auth.yaml#/components/schemas/TokenContentResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [UserAccounts]
+      summary: Delete my account (by bearer token)
+      operationId: deleteMyAccount
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: No Content
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user-accounts/unsubscribe:
+    get:
+      tags: [UserAccountsEmailNotification]
+      summary: Unsubscribe via token (redirect flow)
+      description: Decodes the unsubscribe token, suppresses future emails for that address, then redirects to the frontend confirmation page.
+      operationId: unsubscribeGet
+      parameters:
+        - in: query
+          name: token
+          required: false
+          description: Signed unsubscribe token.
+          schema: { type: string }
+      responses:
+        '303':
+          description: See Other (redirect to configured unsubscribe confirmation page)
+          headers:
+            Location:
+              description: Redirect target URL
+              schema:
+                type: string
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags: [UserAccountsEmailNotification]
+      summary: One-click unsubscribe (RFC 8058)
+      description: Processes a one-click unsubscribe without any confirmation UI or redirect.
+      operationId: unsubscribeOneClick
+      parameters:
+        - in: query
+          name: token
+          required: false
+          schema: { type: string }
+          description: Signed unsubscribe token.
+        - in: header
+          name: List-Unsubscribe-Post
+          required: false
+          schema: { type: string }
+          description: Optional RFC 8058 signal header
+      responses:
+        '204':
+          description: Unsubscribed (no content)
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user-accounts/subscribe:
+    post:
+      tags: [UserAccountsEmailNotification]
+      summary: Remove email from suppression list
+      description: Accepts a subscribe token, validates it, and removes the corresponding email hash from the suppression table.
+      operationId: subscribeUserAccount
+      parameters:
+        - in: query
+          name: token
+          required: false
+          schema:
+            type: string
+          description: Signed subscribe token.
+      responses:
+        '200':
+          description: Resubscribed (email removed from suppression list)
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user-accounts/subscription-status:
+    get:
+      tags: [UserAccountsEmailNotification]
+      summary: Subscription suppression status
+      description: Returns whether the provided email address is currently suppressed.
+      operationId: getSubscriptionStatus
+      parameters:
+        - in: query
+          name: email
+          required: true
+          description: Plain email address to evaluate (will be normalized server-side).
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Current suppression state for the requested email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatusResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive an access token
+      operationId: authLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: 'components/schemas/Auth.yaml#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: 'components/schemas/Auth.yaml#/components/schemas/TokenResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/token-content:
+    get:
+      tags: [Auth]
+      summary: Read current token’s content
+      operationId: getContentFromTokenAuth
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: 'components/schemas/Auth.yaml#/components/schemas/TokenContentResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (revoke current session token)
+      description: Revokes the current access token (via its jti) and ends the session.
+      operationId: authLogout
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: No Content (logout successful)
+        '401':
+          description: Unauthorized (missing/invalid/expired token, or session not active)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user-accounts/settings:
+    get:
+      tags: [UserAccountSettings]
+      summary: Get my account settings
+      operationId: getAccountSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags: [UserAccountSettings]
+      summary: Update my account settings
+      operationId: updateAccountSettings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /verify/email:
+    get:
+      tags: [Verification]
+      summary: Verify email using token
+      operationId: verifyEmail
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        '303':
+          description: See Other (redirect to frontend with verification result)
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /verify/email/resend:
+    post:
+      tags: [Verification]
+      summary: Resend verification email
+      operationId: resendVerificationEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: 'components/schemas/Verification.yaml#/components/schemas/ResendVerificationEmailRequest'
+      responses:
+        '303':
+          description: See Other (redirect to frontend with resend result)
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /verify/email/not-me:
+    get:
+      tags: [Verification]
+      summary: Mark this email as “not me” (suppresses future emails) and redirect
+      operationId: markEmailNotMe
+      parameters:
+        - in: query
+          name: token
+          required: false   # controller handles missing → redirect
+          schema:
+            type: string
+      responses:
+        '303':
+          description: See Other (redirect to frontend)
+          headers:
+            Location:
+              description: Frontend URL with flags (e.g., error/unexpected/ok)
+              schema:
+                type: string
+        '302':
+          description: Found (alternate redirect code)
+          headers:
+            Location:
+              schema:
+                type: string
+        '500':
+          description: Unexpected server error
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Email format is invalid
+        details:
+          type: object
+          additionalProperties: true
+      required: [code, message]
+
+    SubscriptionStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address that was evaluated.
+        suppressed:
+          type: boolean
+          description: Indicates whether the email is currently suppressed.
+      required: [email, suppressed]

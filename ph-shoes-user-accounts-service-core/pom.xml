@@ -15,7 +15,7 @@
 
     <properties>
         <spring-boot.repackage.skip>true</spring-boot.repackage.skip>
-        <openapi.srcDir>${project.parent.basedir}/docs/openapi</openapi.srcDir>
+        <openapi.srcDir>${project.basedir}/docs/openapi</openapi.srcDir>
         <openapi.root>openapi.yaml</openapi.root>
     </properties>
 

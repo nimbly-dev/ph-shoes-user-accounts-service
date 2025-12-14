@@ -1,0 +1,69 @@
+components:
+  schemas:
+
+    LoginRequest:
+      title: LoginRequest
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+      required: [email, password]
+
+    TokenResponse:
+      title: TokenResponse
+      type: object
+      additionalProperties: false
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Lifetime in seconds
+        refreshToken:
+          type: string
+      required: [accessToken, tokenType, expiresIn]
+
+    TokenContentResponse:
+      title: TokenContentResponse
+      type: object
+      additionalProperties: false
+      properties:
+        sub:
+          type: string
+        email:
+          type: string
+          format: email
+        roles:
+          type: array
+          items:
+            type: string
+        iat:
+          type: integer
+          format: int64
+          description: Issued-at (epoch seconds)
+        exp:
+          type: integer
+          format: int64
+          description: Expires-at (epoch seconds)
+      required: [sub, email, roles, iat, exp]
+
+
+    ContentFromTokenResponse:
+      title: ContentFromTokenResponse
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
