@@ -87,7 +87,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_PACKAGES_TOKEN" \
             https://api.github.com/repos/$TARGET_REPO/dispatches \
-            -d "{\"event_type\":\"deploy-service\",\"client_payload\":{\"service\":\"user-accounts\",\"image_uri\":\"$IMAGE_URI\",\"container_port\":\"8080\",\"desired_count\":\"1\",\"app_version\":\"${{ github.run_number }}\"}}")
+            -d "{\"event_type\":\"deploy-service\",\"client_payload\":{\"service\":\"user-accounts\",\"image_uri\":\"$IMAGE_URI\",\"container_port\":\"8082\",\"desired_count\":\"1\",\"app_version\":\"${{ github.run_number }}\"}}")
           echo "Dispatch response ($status):"
           cat "$response"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
