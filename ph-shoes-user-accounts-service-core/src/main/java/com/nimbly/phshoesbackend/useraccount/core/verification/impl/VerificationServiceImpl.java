@@ -205,9 +205,12 @@ public class VerificationServiceImpl implements VerificationService {
                 throw new NotificationSendException("Verification email was not accepted by provider");
             }
             return result;
+        } catch (com.nimbly.phshoesbackend.notification.core.exception.NotificationSendException e) {
+            log.error("Fail to dispatch email notification {}", e.getMessage());
+            throw new NotificationSendException("Failed to send verification email: " + e.getMessage(), e);
         } catch (NotificationSendException e) {
             log.error("Fail to dispatch email notification {}", e.getMessage());
-            throw e; // bubble up exact cause
+            throw e;
         } catch (Exception e) {
             throw new NotificationSendException("Failed to send verification email", e);
         }
