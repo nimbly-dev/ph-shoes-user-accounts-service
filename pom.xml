@@ -128,10 +128,10 @@
 	</dependencyManagement>
 
 	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
+        <plugins>
+                <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>     
+                        <artifactId>maven-compiler-plugin</artifactId>  
 				<configuration>
 					<source>${java.version}</source>
 					<target>${java.version}</target>
@@ -145,10 +145,25 @@
 							<artifactId>spring-boot-configuration-processor</artifactId>
 						</path>
 					</annotationProcessorPaths>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
+                        </configuration>
+                </plugin>
+                <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <configuration>
+                                <excludes>
+                                        <exclude>**/core/model/dto/**</exclude>
+                                        <exclude>**/useraccounts/model/**</exclude>
+                                        <exclude>**/api/**</exclude>
+                                        <exclude>**/config/**</exclude>
+                                        <exclude>**/migrations/**</exclude>
+                                        <exclude>**/repository/dynamo/**</exclude>
+                                        <exclude>**/model/dynamo/**</exclude>
+                                </excludes>
+                        </configuration>
+                </plugin>
+        </plugins>
+</build>
 
 	<repositories>
 		<repository>

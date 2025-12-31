@@ -3,13 +3,12 @@ package com.nimbly.phshoesbackend.useraccount.core.service.impl;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbly.phshoesbackend.useraccount.core.model.Account;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
-import com.nimbly.phshoesbackend.commons.core.repository.SuppressionRepository;
-import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.commons.core.security.EmailCrypto;
 import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
 import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.service.UserAccountsService;
+import com.nimbly.phshoesbackend.useraccount.core.util.SensitiveValueMasker;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.CreateUserAccountResponse;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenContentResponse;
@@ -29,34 +28,71 @@ import java.util.UUID;
 public class UserAccountsServiceImpl implements UserAccountsService {
 
     private final AccountRepository accountRepository;
-    private final SuppressionRepository suppressionRepository;
-    private final VerificationRepository verificationRepository;
     private final EmailCrypto emailCrypto;
     private final JwtTokenService jwtTokenService;
     private final PasswordEncoder passwordEncoder;
 
-    /** Workflow: normalize email -> guard rails -> persist -> respond. */
     @Override
     public CreateUserAccountResponse register(CreateUserAccountRequest request) {
-        String normalized = normalizeEmailOrThrow(request.getEmail());
-        List<String> emailHashes = ensureHashes(normalized);
+        String normalized = emailCrypto.normalize(request.getEmail());
+        if (normalized == null || normalized.isBlank()) {
+            throw new IllegalArgumentException("email must not be blank");
+        }
+
+        List<String> emailHashes = emailCrypto.hashCandidates(normalized);
+        if (emailHashes == null || emailHashes.isEmpty()) {
+            emailHashes = List.of(emailCrypto.hash(normalized));
+        }
+        emailHashes = List.copyOf(emailHashes);
         String primaryHash = emailHashes.get(0);
-        log.info("accounts.register attempt emailHashPrefix={}", shortHash(primaryHash));
+        log.info("accounts.register attempt emailHashPrefix={}", SensitiveValueMasker.hashPrefix(primaryHash));
 
-        enforceEmailNotTaken(emailHashes);
+        boolean exists = emailHashes.stream().anyMatch(accountRepository::existsByEmailHash);
+        if (exists) {
+            log.warn("accounts.register duplicate emailHashPrefix={}", SensitiveValueMasker.hashPrefix(primaryHash));
+            throw new IllegalStateException("Email already exists.");
+        }
 
-        Account account = buildAccount(request, normalized, primaryHash);
+        String password = request.getPassword();
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("password must not be blank");
+        }
+        Instant now = Instant.now();
+        Account account = new Account();
+        account.setUserId(UUID.randomUUID().toString());
+        account.setEmailHash(primaryHash);
+        account.setEmailEnc(emailCrypto.encrypt(normalized));
+        account.setPasswordHash(passwordEncoder.encode(password));
+        account.setIsVerified(false);
+        account.setCreatedAt(now);
+        account.setUpdatedAt(now);
         accountRepository.save(account);
 
-        log.info("Test");
-        log.info("account register created userId={} emailHashPrefix={}", account.getUserId(), shortHash(primaryHash));
-        return toCreateResponse(account);
+        log.info("account register created userId={} emailHashPrefix={}", account.getUserId(), SensitiveValueMasker.hashPrefix(primaryHash));
+        CreateUserAccountResponse response = new CreateUserAccountResponse();
+        response.setUserid(account.getUserId());
+        response.setEmailVerified(Boolean.FALSE);
+        response.setEmail(account.getEmailHash());
+        return response;
     }
 
     @Override
     public TokenContentResponse getContentFromToken(String authorizationHeader) {
-        String token = extractBearer(authorizationHeader);
-        DecodedJWT jwt = parseOrThrow(token);
+        String token = authorizationHeader == null
+                ? null
+                : (authorizationHeader.startsWith("Bearer ")
+                    ? authorizationHeader.substring(7).trim()
+                    : authorizationHeader.trim());
+        if (token == null || token.isBlank()) {
+            throw new InvalidCredentialsException();
+        }
+        DecodedJWT jwt;
+        try {
+            jwt = jwtTokenService.parseAccess(token);
+        } catch (JwtVerificationException ex) {
+            log.error("user.accounts Invalid Credentials: {}", ex.getMessage());
+            throw new InvalidCredentialsException();
+        }
 
         String sub = jwt.getSubject();
         String email = jwt.getClaim("email").asString();
@@ -83,79 +119,5 @@ public class UserAccountsServiceImpl implements UserAccountsService {
         log.info("accounts.delete userId={}", userId);
     }
 
-    private static String extractBearer(String header) {
-        if (header == null) return null;
-        return header.startsWith("Bearer ") ? header.substring(7).trim() : header.trim();
-    }
-
-    private String normalizeEmailOrThrow(String email) {
-        String normalized = emailCrypto.normalize(email);
-        if (normalized == null || normalized.isBlank()) {
-            throw new IllegalArgumentException("email must not be blank");
-        }
-        return normalized;
-    }
-
-    private List<String> ensureHashes(String normalized) {
-        List<String> candidates = emailCrypto.hashCandidates(normalized);
-        if (candidates == null || candidates.isEmpty()) {
-            return List.of(emailCrypto.hash(normalized));
-        }
-        return List.copyOf(candidates);
-    }
-
-
-    private void enforceEmailNotTaken(List<String> hashes) {
-        boolean exists = hashes.stream().anyMatch(accountRepository::existsByEmailHash);
-        if (exists) {
-            log.warn("accounts.register duplicate emailHashPrefix={}", shortHash(hashes.get(0)));
-            throw new IllegalStateException("Email already exists.");
-        }
-    }
-
-    private Account buildAccount(CreateUserAccountRequest request, String normalizedEmail, String emailHash) {
-        Instant now = Instant.now();
-        Account account = new Account();
-        account.setUserId(UUID.randomUUID().toString());
-        account.setEmailHash(emailHash);
-        account.setEmailEnc(emailCrypto.encrypt(normalizedEmail));
-        account.setPasswordHash(passwordEncoder.encode(requirePassword(request.getPassword())));
-        account.setIsVerified(false);
-        account.setCreatedAt(now);
-        account.setUpdatedAt(now);
-        return account;
-    }
-
-    private String requirePassword(String password) {
-        if (password == null || password.isBlank()) {
-            throw new IllegalArgumentException("password must not be blank");
-        }
-        return password;
-    }
-
-    private static CreateUserAccountResponse toCreateResponse(Account account) {
-        var resp = new CreateUserAccountResponse();
-        resp.setUserid(account.getUserId());
-        resp.setEmailVerified(Boolean.FALSE);
-        resp.setEmail(account.getEmailHash());
-        return resp;
-    }
-
-    private static String shortHash(String hash) {
-        if (hash == null || hash.isBlank()) {
-            return "(blank)";
-        }
-        return hash.length() <= 8 ? hash : hash.substring(0, 8);
-    }
-
-    private DecodedJWT parseOrThrow(String token) {
-        if (token == null || token.isBlank()) {
-            throw new InvalidCredentialsException();
-        }
-        try {
-            return jwtTokenService.parseAccess(token);
-        } catch (JwtVerificationException ex) {
-            throw new InvalidCredentialsException();
-        }
-    }
 }
+

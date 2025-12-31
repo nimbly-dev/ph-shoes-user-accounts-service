@@ -1,6 +1,5 @@
 package com.nimbly.phshoesbackend.useraccount.core.verification.impl;
 
-import com.nimbly.phshoesbackend.notification.core.model.dto.EmailAddress;
 import com.nimbly.phshoesbackend.notification.core.model.dto.EmailRequest;
 import com.nimbly.phshoesbackend.notification.core.model.dto.SendResult;
 import com.nimbly.phshoesbackend.notification.core.model.props.NotificationEmailProps;
@@ -12,27 +11,23 @@ import com.nimbly.phshoesbackend.useraccount.core.model.VerificationStatus;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
 import com.nimbly.phshoesbackend.useraccount.core.repository.VerificationRepository;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.AppVerificationProps;
-import com.nimbly.phshoesbackend.useraccount.core.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.notification.core.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.UserAccountNotificationSendException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationAlreadyUsedException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationExpiredException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.VerificationNotFoundException;
 import com.nimbly.phshoesbackend.commons.core.security.EmailCrypto;
-import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
+import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;   
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeService;
+import com.nimbly.phshoesbackend.useraccount.core.util.SensitiveValueMasker;
 import com.nimbly.phshoesbackend.useraccount.core.verification.VerificationService;
 import com.nimbly.phshoesbackend.useraccount.core.verification.VerificationTokenCodec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
-import java.io.InputStream;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -41,8 +36,6 @@ import java.util.UUID;
 public class VerificationServiceImpl implements VerificationService {
 
     private static final int MIN_TTL_SECONDS = 60;
-    private static final String EMAIL_CATEGORY_TAG = "verification";
-    private static final String EMAIL_SUBJECT = "Verify your PH Shoes account";
 
     private final NotificationService notificationService;
     private final NotificationEmailProps emailProps;
@@ -59,14 +52,18 @@ public class VerificationServiceImpl implements VerificationService {
      */
     @Override
     public void sendVerificationEmail(String inputEmail) {
-        VerificationEmailContext context = resolveEmailContext(inputEmail);
+        VerificationEmailContext context = VerificationEmailContextResolver.resolve(
+                inputEmail,
+                emailCrypto,
+                accountRepository
+        );
 
         log.info("verification.send start mode={} hashPrefix={}",
                 context.providedHash() ? "hash" : "email",
-                shortHash(context.effectiveHash()));
+                SensitiveValueMasker.hashPrefix(context.effectiveHash()));
 
         if (suppressionService.shouldBlock(context.normalizedEmail())) {
-            log.warn("verification.suppressed email={}", maskEmailAddress(context.normalizedEmail()));
+            log.warn("verification.suppressed email={}", SensitiveValueMasker.maskEmail(context.normalizedEmail()));
             return;
         }
 
@@ -77,26 +74,43 @@ public class VerificationServiceImpl implements VerificationService {
 
         String verificationId = UUID.randomUUID().toString();
 
-        VerificationEntry pendingEntry = buildPendingEntry(
-                context,
-                verificationId,
-                nowEpochSeconds,
-                expiresAtEpochSeconds
-        );
+        VerificationEntry pendingEntry = new VerificationEntry();
+        pendingEntry.setVerificationId(verificationId);
+        pendingEntry.setUserId(context.userId().orElse(null));
+        pendingEntry.setEmailHash(context.effectiveHash());
+        pendingEntry.setStatus(VerificationStatus.PENDING);
+        pendingEntry.setExpiresAt(expiresAtEpochSeconds);
+        pendingEntry.setCreatedAt(Instant.ofEpochSecond(nowEpochSeconds));
 
         verificationRepository.put(pendingEntry);
 
         log.info("verification.entry created id={} hashPrefix={} expiresAt={}",
-                verificationId, shortHash(pendingEntry.getEmailHash()), expiresAtEpochSeconds);
+                verificationId, SensitiveValueMasker.hashPrefix(pendingEntry.getEmailHash()), expiresAtEpochSeconds);
 
         String token = tokenCodec.encode(verificationId);
-        EmailRequest emailRequest = buildEmailRequest(
+        EmailRequest emailRequest = VerificationEmailComposer.compose(
                 context.normalizedEmail(),
                 pendingEntry.getEmailHash(),
-                token
+                token,
+                emailProps,
+                verificationProps,
+                unsubscribeService
         );
-
-        SendResult sendResult = dispatchVerification(emailRequest);
+        SendResult sendResult;
+        try {
+            sendResult = notificationService.sendEmailVerification(emailRequest);
+            if (sendResult == null || sendResult.getAcceptedAt() == null) {
+                throw new UserAccountNotificationSendException("Verification email was not accepted by provider");
+            }
+        } catch (NotificationSendException e) {
+            log.error("Fail to dispatch email notification {}", e.getMessage());
+            throw new UserAccountNotificationSendException("Failed to send verification email: " + e.getMessage(), e);
+        } catch (UserAccountNotificationSendException e) {
+            log.error("Fail to dispatch email notification {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            throw new UserAccountNotificationSendException("Failed to send verification email", e);
+        }
 
         log.info("verification.sent provider={} messageId={} acceptedAt={} requestId={}",
                 sendResult.getProvider(),
@@ -104,118 +118,6 @@ public class VerificationServiceImpl implements VerificationService {
                 sendResult.getAcceptedAt(),
                 sendResult.getRequestId());
     }
-
-    private VerificationEmailContext resolveEmailContext(String rawEmailOrHash) {
-        if (rawEmailOrHash == null || rawEmailOrHash.isBlank()) {
-            throw new IllegalArgumentException("email must not be blank");
-        }
-
-        if (rawEmailOrHash.contains("@")) {
-            String normalizedEmail = normalizeOrThrow(rawEmailOrHash);
-            List<String> candidateHashes = hashesOrThrow(normalizedEmail);
-            Optional<Account> matchingAccount = findAccountByHashes(candidateHashes);
-            return new VerificationEmailContext(normalizedEmail, candidateHashes, matchingAccount, false);
-        }
-
-        return resolveFromHash(rawEmailOrHash);
-    }
-
-    private VerificationEmailContext resolveFromHash(String emailHash) {
-        Optional<Account> accountOpt = accountRepository.findByEmailHash(emailHash);
-        if (accountOpt.isEmpty()) {
-            log.warn("verification.send hash_without_account hashPrefix={}", shortHash(emailHash));
-            throw new IllegalArgumentException("Unknown email hash");
-        }
-
-        String decryptedEmail = emailCrypto.decrypt(accountOpt.get().getEmailEnc());
-        String normalizedEmail = normalizeOrThrow(decryptedEmail);
-        List<String> candidateHashes = hashesOrThrow(normalizedEmail);
-        return new VerificationEmailContext(normalizedEmail, candidateHashes, accountOpt, true);
-    }
-
-    private String normalizeOrThrow(String email) {
-        String normalized = emailCrypto.normalize(email);
-        if (normalized == null || normalized.isBlank()) {
-            throw new IllegalArgumentException("email must not be blank");
-        }
-        return normalized;
-    }
-
-    private List<String> hashesOrThrow(String normalizedEmail) {
-        List<String> candidates = emailCrypto.hashCandidates(normalizedEmail);
-        if (candidates == null || candidates.isEmpty()) {
-            throw new IllegalArgumentException("email must not be blank");
-        }
-        return candidates;
-    }
-
-    private VerificationEntry buildPendingEntry(VerificationEmailContext context,
-                                                String verificationId,
-                                                long createdAtEpochSeconds,
-                                                long expiresAtEpochSeconds) {
-        VerificationEntry entry = new VerificationEntry();
-        entry.setVerificationId(verificationId);
-        entry.setUserId(context.userId().orElse(null));
-        entry.setEmailHash(context.effectiveHash());
-        entry.setStatus(VerificationStatus.PENDING);
-        entry.setExpiresAt(expiresAtEpochSeconds);
-        entry.setCreatedAt(Instant.ofEpochSecond(createdAtEpochSeconds));
-        return entry;
-    }
-
-    private EmailRequest buildEmailRequest(String recipientEmail,
-                                           String emailHash,
-                                           String token) {
-
-        String verificationLinkBase = required("verification.verificationLink", verificationProps.getVerificationLink());
-        String notMeLinkBase = required("verification.notMeLink", verificationProps.getNotMeLink());
-
-        String verificationUrl = buildUrl(verificationLinkBase, token);
-        String notMeUrl = buildUrl(notMeLinkBase, token);
-
-        String htmlTemplate = loadClasspath("email/verification.html");
-        String renderedHtml = renderHtml(htmlTemplate, verificationUrl, notMeUrl);
-
-        Optional<String> listUnsubscribeHeader = unsubscribeService.buildListUnsubscribeHeader(emailHash);
-
-        var requestBuilder = EmailRequest.builder()
-                .from(parseSenderHeader(emailProps.getFrom()))
-                .to(EmailAddress.builder().address(recipientEmail).build())
-                .subject(EMAIL_SUBJECT)
-                .htmlBody(renderedHtml)
-                .textBody("Verify your account: " + verificationUrl)
-                .tag("category", EMAIL_CATEGORY_TAG)
-                .requestIdHint("verify:" + shortHash(emailHash));
-
-        listUnsubscribeHeader
-                .filter(header -> !header.isBlank())
-                .ifPresent(value -> requestBuilder.header("List-Unsubscribe", value));
-        if (emailProps.getListUnsubscribePost() != null
-                && !emailProps.getListUnsubscribePost().isBlank()) {
-            requestBuilder.header("List-Unsubscribe-Post", emailProps.getListUnsubscribePost());
-        }
-
-        return requestBuilder.build();
-    }
-
-    private SendResult dispatchVerification(EmailRequest request) {
-        try {
-            SendResult result = notificationService.sendEmailVerification(request);
-            if (result == null || result.getAcceptedAt() == null) {
-                throw new NotificationSendException("Verification email was not accepted by provider");
-            }
-            return result;
-        } catch (com.nimbly.phshoesbackend.notification.core.exception.NotificationSendException e) {
-            log.error("Fail to dispatch email notification {}", e.getMessage());
-            throw new NotificationSendException("Failed to send verification email: " + e.getMessage(), e);
-        } catch (NotificationSendException e) {
-            log.error("Fail to dispatch email notification {}", e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            throw new NotificationSendException("Failed to send verification email", e);
-        }
-    }
-
 
     @Override
     public void resendVerification(String emailPlain) {
@@ -235,7 +137,20 @@ public class VerificationServiceImpl implements VerificationService {
             throw new VerificationExpiredException("expired");
         }
 
-        if (entry.getStatus() != VerificationStatus.PENDING || accountAlreadyVerified(entry)) {
+        boolean alreadyVerified = false;
+        if (entry.getUserId() != null && !entry.getUserId().isBlank()) {
+            alreadyVerified = accountRepository.findByUserId(entry.getUserId())
+                    .map(Account::getIsVerified)
+                    .map(Boolean::booleanValue)
+                    .orElse(false);
+        } else if (entry.getEmailHash() != null && !entry.getEmailHash().isBlank()) {
+            alreadyVerified = accountRepository.findByEmailHash(entry.getEmailHash())
+                    .map(Account::getIsVerified)
+                    .map(Boolean::booleanValue)
+                    .orElse(false);
+        }
+
+        if (entry.getStatus() != VerificationStatus.PENDING || alreadyVerified) {
             throw new VerificationAlreadyUsedException("Verification token already consumed");
         }
 
@@ -249,7 +164,20 @@ public class VerificationServiceImpl implements VerificationService {
             if (after.getExpiresAt() != null && after.getExpiresAt() <= nowEpochSeconds) {
                 throw new VerificationExpiredException("expired");
             }
-            if (after.getStatus() != VerificationStatus.PENDING || accountAlreadyVerified(after)) {
+            boolean alreadyVerifiedAfter = false;
+            if (after.getUserId() != null && !after.getUserId().isBlank()) {
+                alreadyVerifiedAfter = accountRepository.findByUserId(after.getUserId())
+                        .map(Account::getIsVerified)
+                        .map(Boolean::booleanValue)
+                        .orElse(false);
+            } else if (after.getEmailHash() != null && !after.getEmailHash().isBlank()) {
+                alreadyVerifiedAfter = accountRepository.findByEmailHash(after.getEmailHash())
+                        .map(Account::getIsVerified)
+                        .map(Boolean::booleanValue)
+                        .orElse(false);
+            }
+
+            if (after.getStatus() != VerificationStatus.PENDING || alreadyVerifiedAfter) {
                 throw new VerificationAlreadyUsedException("Verification token already consumed");
             }
             // status somehow remained pending; retry once
@@ -298,7 +226,7 @@ public class VerificationServiceImpl implements VerificationService {
                     "User clicked 'Not me'",
                     null
             );
-            log.warn("verification.not_me id={} emailHash={}", verificationId, shortHash(emailHash));
+            log.warn("verification.not_me id={} emailHash={}", verificationId, SensitiveValueMasker.hashPrefix(emailHash));
             return true;
         }
 
@@ -306,122 +234,5 @@ public class VerificationServiceImpl implements VerificationService {
         return false;
     }
 
-    // ===== helpers =====
-
-    private static String buildUrl(String baseUrl, String token) {
-        String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
-    }
-
-    private static String required(String key, String value) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException("Missing required property: " + key);
-        }
-        return value;
-    }
-
-    private static EmailAddress parseSenderHeader(String fromHeader) {
-        String senderDisplayName = null;
-        String senderAddress = fromHeader.trim();
-
-        int openAngleIndex = fromHeader.indexOf('<');
-        int closeAngleIndex = fromHeader.indexOf('>');
-
-        if (openAngleIndex >= 0 && closeAngleIndex > openAngleIndex) {
-            // Everything before '<' is (potentially quoted) display name
-            senderDisplayName = stripEnclosingQuotes(fromHeader.substring(0, openAngleIndex).trim());
-            // Everything between '<' and '>' is the address
-            senderAddress = fromHeader.substring(openAngleIndex + 1, closeAngleIndex).trim();
-        }
-
-        return EmailAddress.builder()
-                .name(isBlank(senderDisplayName) ? null : senderDisplayName)
-                .address(senderAddress)
-                .build();
-    }
-
-    private static String loadClasspath(String path) {
-        try (InputStream in = new ClassPathResource(path).getInputStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot load template: " + path, e);
-        }
-    }
-
-    private static String renderHtml(String template, String verifyUrl, String notMeUrl) {
-        return template
-                .replace("{{VERIFY_URL}}", verifyUrl)
-                .replace("${VERIFY_URL}", verifyUrl)
-                .replace("{{NOT_ME_URL}}", notMeUrl)
-                .replace("${NOT_ME_URL}", notMeUrl);
-    }
-
-    /**
-     * Masks an email for logs: first char + "***" + domain (or "***" if no local part).
-     */
-    private static String maskEmailAddress(String emailAddress) {
-        if (emailAddress == null || emailAddress.isBlank()) {
-            return "(blank)";
-        }
-
-        int atIndex = emailAddress.indexOf('@');
-        if (atIndex <= 1) { // 0 or 1 chars before '@' (or no '@' at all -> atIndex == -1)
-            String domainPart = (atIndex >= 0) ? emailAddress.substring(atIndex) : "";
-            return "***" + domainPart;
-        }
-
-        char firstLocalChar = emailAddress.charAt(0);
-        String domainPart = (atIndex >= 0) ? emailAddress.substring(atIndex) : "";
-        return firstLocalChar + "***" + domainPart;
-    }
-
-    private Optional<Account> findAccountByHashes(List<String> hashes) {
-        return hashes.stream()
-                .map(accountRepository::findByEmailHash)
-                .flatMap(Optional::stream)
-                .findFirst();
-    }
-
-    private boolean accountAlreadyVerified(VerificationEntry entry) {
-        if (entry == null) {
-            return false;
-        }
-
-        if (entry.getUserId() != null && !entry.getUserId().isBlank()) {
-            return accountRepository.findByUserId(entry.getUserId())
-                    .map(Account::getIsVerified)
-                    .map(Boolean::booleanValue)
-                    .orElse(false);
-        }
-
-        if (entry.getEmailHash() != null && !entry.getEmailHash().isBlank()) {
-            return accountRepository.findByEmailHash(entry.getEmailHash())
-                    .map(Account::getIsVerified)
-                    .map(Boolean::booleanValue)
-                    .orElse(false);
-        }
-
-        return false;
-    }
-
-    private static String shortHash(String hash) {
-        if (hash == null || hash.isBlank()) {
-            return "(blank)";
-        }
-        return hash.length() <= 8 ? hash : hash.substring(0, 8);
-    }
-
-    private static String stripEnclosingQuotes(String s) {
-        if (s == null || s.length() < 2) return s;
-        char first = s.charAt(0);
-        char last = s.charAt(s.length() - 1);
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            return s.substring(1, s.length() - 1);
-        }
-        return s;
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
 }
+

@@ -1,8 +1,8 @@
 package com.nimbly.phshoesbackend.useraccount.web.controller;
 
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.exception.AccountBlockedException;
-import com.nimbly.phshoesbackend.useraccount.core.exception.NotificationSendException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.UserAccountNotificationSendException;
 import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.service.UserAccountsService;
 import com.nimbly.phshoesbackend.useraccount.core.verification.VerificationService;
@@ -49,9 +49,9 @@ public class UserAccountsController implements UserAccountsApi {
             log.warn("verification.send failed email={} err={}", created.getEmail(), ex.toString());
             log.warn("Rolling back user creation with userid={}", created.getUserid());
             accountService.deleteOwnAccount(created.getUserid());
-            throw (ex instanceof NotificationSendException)
-                    ? (NotificationSendException) ex
-                    : new NotificationSendException("Verification pipeline failed", ex);
+            throw (ex instanceof UserAccountNotificationSendException)
+                    ? (UserAccountNotificationSendException) ex
+                    : new UserAccountNotificationSendException("Verification pipeline failed", ex);
         }
 
         return ResponseEntity.status(201).body(created);
@@ -79,17 +79,14 @@ public class UserAccountsController implements UserAccountsApi {
     @Override
     public ResponseEntity<Void> deleteMyAccount() {
         String authorizationHeader = nativeWebRequest.getHeader(HttpHeaders.AUTHORIZATION);
-        String userId = extractUserId(authorizationHeader);
-        accountService.deleteOwnAccount(userId);
-        log.info("user.delete completed userId={}", userId);
-        return ResponseEntity.noContent().build();
-    }
-
-    private String extractUserId(String authorizationHeader) {
+        String userId;
         try {
-            return jwtTokenService.userIdFromAuthorizationHeader(authorizationHeader);
+            userId = jwtTokenService.userIdFromAuthorizationHeader(authorizationHeader);
         } catch (JwtVerificationException ex) {
             throw new InvalidCredentialsException();
         }
+        accountService.deleteOwnAccount(userId);
+        log.info("user.delete completed userId={}", userId);
+        return ResponseEntity.noContent().build();
     }
 }
