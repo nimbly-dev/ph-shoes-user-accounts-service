@@ -46,16 +46,25 @@ services:
   account-service:
     build:
       context: .
-      dockerfile: DockerfileDev
+      dockerfile: Dockerfile
+      target: dev
     container_name: ph-shoes-account-service
     ports:
       - "8082:8082"
+    env_file:
+      - ../.env
     environment:
       GH_ACTOR: ${GH_ACTOR}
       GH_PACKAGES_TOKEN: ${GH_PACKAGES_TOKEN}
-      SPRING_MAIL_HOST: mailhog
-      SPRING_MAIL_PORT: 1025
-      SPRING_PROFILES_ACTIVE: dev
+      NOTIFICATION_PROVIDER: smtp
+      NOTIFICATION_TRANSPORT: smtp
+      NOTIFICATION_SMTP_HOST: mailhog
+      NOTIFICATION_SMTP_PORT: 1025
+      SES_WEBHOOK_VERIFY_SIGNATURE: false
+      SES_WEBHOOK_AUTO_CONFIRM: false
+      SES_WEBHOOK_ALLOWED_TOPICS: "*"
+      SPRINGDOC_API_DOCS_ENABLED: true
+      SPRINGDOC_SWAGGER_UI_ENABLED: true
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: ap-southeast-1
@@ -66,10 +75,9 @@ services:
       - "${HOME}/.m2:/root/.m2"
     command: >
       bash -lc "set -euo pipefail;
-        mvn -s .mvn/settings.xml -pl ph-shoes-user-accounts-service-core -am -U -Pdev -DskipTests=true clean install -q &&
+        mvn -s .mvn/settings.xml -pl ph-shoes-user-accounts-service-core -am -U -Pdev clean install -q &&
         cd ph-shoes-user-accounts-service-web &&
-        mvn -s ../.mvn/settings.xml -am -U -Pdev -DskipTests=true spring-boot:run \
-          -Dspring-boot.run.profiles=dev \
+        mvn -s ../.mvn/settings.xml -am -U -Pdev spring-boot:run \
           -Dspring-boot.run.fork=false \
           -Dspring-boot.run.jvmArguments=\"${JAVA_TOOL_OPTIONS}\" \
           -Dopenapi.docs.url=http://localhost:8082/v3/api-docs.yaml"

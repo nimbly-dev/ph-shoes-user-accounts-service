@@ -1,6 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.core.config;
 
-import com.nimbly.phshoesbackend.useraccount.core.config.props.AppAwsProps; // adjust if your props package differs
+import com.nimbly.phshoesbackend.useraccount.core.config.props.AppAwsProps;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
@@ -19,6 +20,7 @@ import java.net.URI;
 import java.time.Duration;
 
 
+@Slf4j
 @Configuration
 public class DynamoConfig {
 
@@ -52,8 +54,9 @@ public class DynamoConfig {
         }
 
         var client = b.build();
-        System.out.println("[DDB] region=" + aws.getRegion() + " endpoint=" +
-                (StringUtils.hasText(aws.getEndpoint()) ? normalizeEndpoint(aws.getEndpoint()) : "(aws)"));
+        log.info("ddb.client region={} endpoint={}",
+                aws.getRegion(),
+                StringUtils.hasText(aws.getEndpoint()) ? normalizeEndpoint(aws.getEndpoint()) : "(aws)");
         return client;
     }
 

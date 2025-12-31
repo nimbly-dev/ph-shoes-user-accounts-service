@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -45,6 +46,23 @@ public class DynamoDbAccountRepository implements AccountRepository {
 
         if (query.count() == 0) return Optional.empty();
         return Optional.of(mapToAccount(query.items().get(0)));
+    }
+
+    @Override
+    public Optional<Account> findByAnyEmailHash(List<String> emailHashes) {
+        if (emailHashes == null || emailHashes.isEmpty()) {
+            return Optional.empty();
+        }
+        for (String emailHash : emailHashes) {
+            if (emailHash == null || emailHash.isBlank()) {
+                continue;
+            }
+            Optional<Account> account = findByEmailHash(emailHash);
+            if (account.isPresent()) {
+                return account;
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -170,3 +188,4 @@ public class DynamoDbAccountRepository implements AccountRepository {
                 .build());
     }
 }
+

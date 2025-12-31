@@ -3,6 +3,8 @@ package com.nimbly.phshoesbackend.useraccount.web.controller;
 import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.subscribe.SubscribeService;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeService;
+import com.nimbly.phshoesbackend.useraccount.core.util.SensitiveValueMasker;
+import com.nimbly.phshoesbackend.useraccount.web.util.RedirectResponses;
 import com.nimbly.phshoesbackend.useraccounts.api.UserAccountsEmailNotificationApi;
 import com.nimbly.phshoesbackend.useraccounts.model.SubscriptionStatusResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,9 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URI;
 import java.util.Locale;
 
 @Slf4j
@@ -53,7 +53,7 @@ public class UserAccountsEmailNotificationController implements UserAccountsEmai
             unsubscribeService.unsubscribe(token);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            log.warn("unsubscribe.failed token={} msg={}", shortHashToken(token), e.toString());
+            log.warn("unsubscribe.failed token={} msg={}", SensitiveValueMasker.truncateForLog(token, 12), e.toString());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
@@ -63,15 +63,15 @@ public class UserAccountsEmailNotificationController implements UserAccountsEmai
             @RequestParam(value = "token", required = false) String token) {
 
         if (token == null || token.isBlank()) {
-            return redirectToFrontend("missing_token");
+            return RedirectResponses.seeOther(frontendBaseUrl, frontendUnsubscribePath, "missing_token");
         }
 
         try {
             unsubscribeService.unsubscribe(token);
-            return redirectToFrontend(null);
+            return RedirectResponses.seeOther(frontendBaseUrl, frontendUnsubscribePath, null);
         } catch (Exception e) {
-            log.warn("unsubscribe.failed token={} msg={}", shortHashToken(token), e.toString());
-            return redirectToFrontend("invalid_token");
+            log.warn("unsubscribe.failed token={} msg={}", SensitiveValueMasker.truncateForLog(token, 12), e.toString());
+            return RedirectResponses.seeOther(frontendBaseUrl, frontendUnsubscribePath, "invalid_token");
         }
     }
 
@@ -88,7 +88,7 @@ public class UserAccountsEmailNotificationController implements UserAccountsEmai
             subscribeService.resubscribe(token);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.warn("subscribe.failed token={} msg={}", shortHashToken(token), e.toString());
+            log.warn("subscribe.failed token={} msg={}", SensitiveValueMasker.truncateForLog(token, 12), e.toString());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
@@ -112,22 +112,5 @@ public class UserAccountsEmailNotificationController implements UserAccountsEmai
         response.setSuppressed(suppressed);
         return ResponseEntity.ok(response);
     }
-
-    private ResponseEntity<Void> redirectToFrontend(String errorCode) {
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(frontendBaseUrl)
-                .path(frontendUnsubscribePath);
-        if (errorCode != null) {
-            builder.queryParam("error", errorCode);
-        }
-        URI location = builder.build(true).toUri();
-        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(location).build();
-    }
-
-    private String shortHashToken(String token) {
-        if (token == null || token.length() <= 12) {
-            return token;
-        }
-        return token.substring(0, 12) + "...";
-    }
 }
+

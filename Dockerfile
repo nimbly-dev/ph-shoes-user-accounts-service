@@ -1,3 +1,7 @@
+# ---------- Dev stage ----------
+FROM maven:3-amazoncorretto-21 AS dev
+WORKDIR /app
+
 # ---------- Build stage ----------
 FROM maven:3-amazoncorretto-21 AS build
 WORKDIR /workspace
@@ -7,7 +11,6 @@ ARG GH_ACTOR
 ARG GH_PACKAGES_TOKEN
 ARG MAVEN_ACTIVE_PROFILES=prod
 ENV MAVEN_SETTINGS_PATH=/tmp/maven-settings.xml
-ENV SPRING_PROFILES_ACTIVE=${MAVEN_ACTIVE_PROFILES}
 
 # Configure Maven to authenticate against the private GitHub repositories
 RUN printf '%s\n' \
@@ -43,7 +46,6 @@ RUN rm -f ${MAVEN_SETTINGS_PATH}
 FROM amazoncorretto:21-alpine AS runtime
 ENV APP_HOME=/app \
     JAVA_TOOL_OPTIONS="-XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:MaxRAMPercentage=75" \
-    SPRING_PROFILES_ACTIVE=prod \
     PORT=8082
 
 # Add a non-root user

@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
-import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -30,16 +30,24 @@ public class AccountSettingsServiceImpl implements AccountSettingsService {
 
     @Override
     public JsonNode getOrInit(String userId) {
-        var existing = repo.getSettingsJson(userId);
-        if (existing.isPresent() && existing.get() != null && !existing.get().isBlank()) {
-            return parse(existing.get());
+        Optional<String> existing = repo.getSettingsJson(userId);
+        String settingsJson = existing
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(null);
+
+        if (settingsJson == null) {
+            try {
+                repo.putSettingsJson(userId, DEFAULT_SETTINGS_JSON);
+            } catch (ConditionalCheckFailedException ex) {
+                throw new AccountNotFoundException("userId=" + userId);
+            }
+            settingsJson = DEFAULT_SETTINGS_JSON;
         }
 
         try {
-            repo.putSettingsJson(userId, DEFAULT_SETTINGS_JSON);
-            return parse(DEFAULT_SETTINGS_JSON);
-        } catch (ConditionalCheckFailedException ex) {
-            throw new AccountNotFoundException("userId=" + userId);
+            return mapper.readTree(settingsJson);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid settings JSON in DB", e);
         }
     }
 
@@ -47,26 +55,23 @@ public class AccountSettingsServiceImpl implements AccountSettingsService {
     public JsonNode update(String userId, JsonNode settings) {
         try {
             if (settings == null || settings.isNull()) {
-                // allow clearing settings (REMOVE attribute)
                 repo.putSettingsJson(userId, null);
                 return null;
             }
 
             String json = mapper.writeValueAsString(settings);
-            if (json.getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
-                throw new IllegalArgumentException("settings too large (>64KB)");
-            }
             repo.putSettingsJson(userId, json);
             return settings;
         } catch (ConditionalCheckFailedException e) {
+            log.error("account.setting: Failed to get account with userid {}", userId);
             throw new AccountNotFoundException("userId=" + userId);
+        } catch (IllegalArgumentException e) {
+            log.error("account.setting: Illegal Argument: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
+            log.error("Error on account.setting.update : {}", e.getMessage());
             throw new RuntimeException("Failed to update settings", e);
         }
     }
 
-    private JsonNode parse(String json) {
-        try { return mapper.readTree(json); }
-        catch (Exception e) { throw new RuntimeException("Invalid settings JSON in DB", e); }
-    }
 }

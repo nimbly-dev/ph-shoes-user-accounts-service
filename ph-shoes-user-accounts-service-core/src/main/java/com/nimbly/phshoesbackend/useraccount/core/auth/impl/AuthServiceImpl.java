@@ -2,8 +2,8 @@ package com.nimbly.phshoesbackend.useraccount.core.auth.impl;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.nimbly.phshoesbackend.useraccount.core.auth.AuthService;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.AccountLockedException;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.AccountLockedException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.core.model.Account;
 import com.nimbly.phshoesbackend.useraccount.core.repository.AccountRepository;
@@ -15,6 +15,7 @@ import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtTokenService;
 import com.nimbly.phshoesbackend.commons.core.security.jwt.JwtVerificationException;
 import com.nimbly.phshoesbackend.useraccounts.model.LoginRequest;
 import com.nimbly.phshoesbackend.useraccounts.model.TokenResponse;
+import com.nimbly.phshoesbackend.useraccount.core.util.SensitiveValueMasker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +40,10 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationRepository verificationRepository;
 
     @Override
+    /**
+     * Authenticates a user by normalized email and password, enforcing lockout and verification rules,
+     * then issues an access token and records the session metadata.
+     */
     public TokenResponse login(LoginRequest request, String ip, String userAgent) {
         long t0 = System.currentTimeMillis();
 
@@ -51,56 +56,74 @@ public class AuthServiceImpl implements AuthService {
         final String rawPassword = Objects.requireNonNullElse(request.getPassword(), "");
 
         try {
-            log.info("auth.login start emailHashPrefix={} ip={}", shortHash(primaryHash), ip);
+            log.info("auth.login start emailHashPrefix={} ip={}", SensitiveValueMasker.hashPrefix(primaryHash), ip);
 
-            Optional<Account> opt = Optional.empty();
-            for (String candidate : emailHashes) {
-                opt = accounts.findByEmailHash(candidate);
-                if (opt.isPresent()) {
-                    break;
-                }
-            }
+            Optional<Account> opt = accounts.findByAnyEmailHash(emailHashes);
             if (opt.isEmpty()) {
-                log.warn("auth.login no_account emailHashPrefix={}", shortHash(primaryHash));
+                log.warn("auth.login no_account emailHashPrefix={}", SensitiveValueMasker.hashPrefix(primaryHash));
                 throw new InvalidCredentialsException();
             }
 
             final Account acc = opt.get();
 
-            if (isLocked(acc)) {
-                log.warn("auth.login locked userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+            Instant lockUntil = acc.getLockUntil();
+            if (lockUntil != null && Instant.now().isBefore(lockUntil)) {
+                log.warn("auth.login locked userId={} emailHashPrefix={}", acc.getUserId(), SensitiveValueMasker.hashPrefix(primaryHash));
                 throw new AccountLockedException();
             }
 
             String stored = acc.getPasswordHash();
             boolean passwordOk = (stored != null && !stored.isBlank()) && passwordEncoder.matches(rawPassword, stored);
             if (!passwordOk) {
-                recordFailedLogin(acc);
-                log.warn("auth.login failed reason=bad_password userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                Integer failures = acc.getLoginFailCount();
+                int newCount = (failures == null ? 0 : failures) + 1;
+                acc.setLoginFailCount(newCount);
+                if (newCount >= lockProps.getMaxFailures()) {
+                    acc.setLockUntil(Instant.now().plusSeconds(lockProps.getDurationSeconds()));
+                    acc.setLoginFailCount(0);
+                }
+                acc.setUpdatedAt(Instant.now());
+                accounts.save(acc);
+                log.warn("auth.login failed reason=bad_password userId={} emailHashPrefix={}", acc.getUserId(), SensitiveValueMasker.hashPrefix(primaryHash));
                 throw new InvalidCredentialsException();
             }
 
             if (primaryHash != null && !primaryHash.equals(acc.getEmailHash())) {
-                migrateEmailHash(acc, primaryHash);
+                acc.setEmailHash(primaryHash);
+                acc.setUpdatedAt(Instant.now());
+                accounts.save(acc);
             }
 
             if (Boolean.FALSE.equals(acc.getIsVerified())) {
-                if (hasVerifiedEmail(emailHashes)) {
+                boolean verifiedByHash = false;
+                for (String candidate : emailHashes) {
+                    if (verificationRepository.hasVerifiedEntryForEmailHash(candidate)) {
+                        verifiedByHash = true;
+                        break;
+                    }
+                }
+                if (verifiedByHash) {
                     accounts.setVerified(acc.getUserId(), true);
                     acc.setIsVerified(true);
-                    log.info("auth.login restored_verification userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                    log.info("auth.login restored_verification userId={} emailHashPrefix={}", acc.getUserId(), SensitiveValueMasker.hashPrefix(primaryHash));
                 }
             }
 
             if (Boolean.FALSE.equals(acc.getIsVerified())) {
-                log.warn("auth.login unverified userId={} emailHashPrefix={}", acc.getUserId(), shortHash(primaryHash));
+                log.warn("auth.login unverified userId={} emailHashPrefix={}", acc.getUserId(), SensitiveValueMasker.hashPrefix(primaryHash));
                 throw new EmailNotVerifiedException();
             }
 
-            recordSuccessfulLogin(acc, ip, userAgent);
+            acc.setLoginFailCount(0);
+            acc.setLockUntil(null);
+            acc.setLastLoginAt(Instant.now());
+            acc.setLastLoginIp(ip);
+            acc.setLastLoginUserAgent(userAgent);
+            acc.setUpdatedAt(Instant.now());
+            accounts.save(acc);
 
             final String token = jwtTokenService.issueAccessToken(acc.getUserId(), normalizedEmail);
-            var decoded = jwtTokenService.parseAccess(token);
+            DecodedJWT decoded = jwtTokenService.parseAccess(token);
             String jti = decoded.getId();
             if (jti == null || jti.isBlank() || decoded.getExpiresAt() == null) {
                 log.error("auth.login token_missing_jti_or_exp userId={}", acc.getUserId());
@@ -118,7 +141,7 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (RuntimeException e) {
             log.error("auth.login error emailHashPrefix={} ip={} ua={} msg={}",
-                    shortHash(primaryHash), ip, truncate(userAgent, 64), e.toString(), e);
+                    SensitiveValueMasker.hashPrefix(primaryHash), ip, SensitiveValueMasker.truncateForLog(userAgent, 64), e.toString(), e);
             throw e;
         }
     }
@@ -130,7 +153,12 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException();
         }
         String token = authorizationHeader.substring(7).trim();
-        var jwt = parseOrThrow(token);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtTokenService.parseAccess(token);
+        } catch (JwtVerificationException ex) {
+            throw new InvalidCredentialsException();
+        }
 
         String jti = jwt.getId();
         if (jti == null || jti.isBlank()) {
@@ -146,63 +174,6 @@ public class AuthServiceImpl implements AuthService {
         log.info("auth.logout revoked jti={} sub={}", jti, jwt.getSubject());
     }
 
-    private boolean isLocked(Account acc) {
-        Instant until = acc.getLockUntil();
-        return until != null && Instant.now().isBefore(until);
-    }
-
-    private void recordFailedLogin(Account acc) {
-        Integer failures = acc.getLoginFailCount();
-        int newCount = (failures == null ? 0 : failures) + 1;
-        acc.setLoginFailCount(newCount);
-        if (newCount >= lockProps.getMaxFailures()) {
-            acc.setLockUntil(Instant.now().plusSeconds(lockProps.getDurationSeconds()));
-            acc.setLoginFailCount(0);
-        }
-        acc.setUpdatedAt(Instant.now());
-        accounts.save(acc);
-    }
-
-    private void recordSuccessfulLogin(Account acc, String ip, String userAgent) {
-        acc.setLoginFailCount(0);
-        acc.setLockUntil(null);
-        acc.setLastLoginAt(Instant.now());
-        acc.setLastLoginIp(ip);
-        acc.setLastLoginUserAgent(userAgent);
-        acc.setUpdatedAt(Instant.now());
-        accounts.save(acc);
-    }
-
-    private static String shortHash(String emailHash) {
-        if (emailHash == null) return "(null)";
-        return emailHash.length() <= 8 ? emailHash : emailHash.substring(0, 8);
-    }
-
-    private static String truncate(String s, int max) {
-        if (s == null) return "unknown";
-        return s.length() <= max ? s : s.substring(0, max) + "…";
-    }
-
-    private void migrateEmailHash(Account acc, String newHash) {
-        acc.setEmailHash(newHash);
-        acc.setUpdatedAt(Instant.now());
-        accounts.save(acc);
-    }
-
-    private boolean hasVerifiedEmail(List<String> emailHashes) {
-        for (String candidate : emailHashes) {
-            if (verificationRepository.hasVerifiedEntryForEmailHash(candidate)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private DecodedJWT parseOrThrow(String token) {
-        try {
-            return jwtTokenService.parseAccess(token);
-        } catch (JwtVerificationException ex) {
-            throw new InvalidCredentialsException();
-        }
-    }
 }
+
+

@@ -8,7 +8,7 @@ public interface SubscribeService {
     /**
      * Removes the underlying email hash from the suppression list.
      *
-     * @param token signed token produced by {@link com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeTokenCodec}
+     * @param token signed token produced by UnsubscribeTokenCodec
      */
     void resubscribe(String token);
 }

@@ -6,6 +6,7 @@ import com.nimbly.phshoesbackend.useraccount.core.config.props.AppVerificationPr
 import com.nimbly.phshoesbackend.useraccount.core.service.SuppressionService;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeService;
 import com.nimbly.phshoesbackend.useraccount.core.unsubscribe.UnsubscribeTokenCodec;
+import com.nimbly.phshoesbackend.useraccount.core.util.SensitiveValueMasker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,7 +15,6 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -33,7 +33,10 @@ public class UnsubscribeServiceImpl implements UnsubscribeService {
 
     @Override
     public void unsubscribe(String token) {
-        String emailHash = decodeToken(token);
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("token must not be blank");
+        }
+        String emailHash = unsubscribeTokenCodec.decodeAndVerify(token);
         suppressionService.suppressHash(
                 emailHash,
                 SuppressionReason.MANUAL,
@@ -41,7 +44,7 @@ public class UnsubscribeServiceImpl implements UnsubscribeService {
                 NOTES,
                 null
         );
-        log.info("unsubscribe.success hashPrefix={}", shortHash(emailHash));
+        log.info("unsubscribe.success hashPrefix={}", SensitiveValueMasker.hashPrefix(emailHash));
     }
 
     @Override
@@ -51,15 +54,62 @@ public class UnsubscribeServiceImpl implements UnsubscribeService {
         }
 
         Set<String> entries = new LinkedHashSet<>();
-        collectMailtoEntries(entries);
+        String configured = emailProps.getListUnsubscribe();
+        if (configured != null && !configured.isBlank()) {
+            for (String raw : configured.split(",")) {
+                String trimmed = raw.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                entries.add(trimmed);
+            }
+        }
 
-        generateUnsubscribeUrl(emailHash).ifPresent(url -> {
-            entries.add("<" + url + ">");
-            log.debug("unsubscribe.header_added type=one_click url={}", url);
-        });
+        String baseUrl = null;
+        String unsubscribeLink = emailProps.getUnsubscribeLink();
+        if (unsubscribeLink != null && !unsubscribeLink.isBlank()) {
+            baseUrl = unsubscribeLink;
+        } else {
+            String verificationLink = verificationProps.getVerificationLink();
+            if (verificationLink == null || verificationLink.isBlank()) {
+                log.info("unsubscribe.derive_base skipped reason=missing_verification_link");
+            } else {
+                try {
+                    URI base = URI.create(verificationLink);
+                    String path = Optional.ofNullable(base.getPath()).orElse("/");
+                    String prefix = path.replaceFirst("/verify.*", "/");
+                    if (!prefix.endsWith("/")) {
+                        prefix = prefix + "/";
+                    }
+                    URI rebuilt = new URI(
+                            base.getScheme(),
+                            base.getAuthority(),
+                            prefix + "user-accounts/unsubscribe",
+                            null,
+                            null
+                    );
+                    baseUrl = rebuilt.toString();
+                } catch (Exception e) {
+                    log.warn("unsubscribe.base_derivation_failed link={} msg={}", verificationLink, e.toString());
+                }
+            }
+        }
+
+        if (baseUrl != null) {
+            try {
+                String tokenValue = unsubscribeTokenCodec.encode(emailHash);
+                String separator = baseUrl.contains("?") ? "&" : "?";
+                String url = baseUrl + separator + "token=" + URLEncoder.encode(tokenValue, StandardCharsets.UTF_8);
+                entries.add("<" + url + ">");
+                log.debug("unsubscribe.header_added type=one_click url={}", url);
+            } catch (Exception e) {
+                log.warn("unsubscribe.token_generation_failed hashPrefix={} msg={}",
+                        SensitiveValueMasker.hashPrefix(emailHash), e.toString());
+            }
+        }
 
         if (entries.isEmpty()) {
-            log.warn("unsubscribe.header_missing hashPrefix={}", shortHash(emailHash));
+            log.warn("unsubscribe.header_missing hashPrefix={}", SensitiveValueMasker.hashPrefix(emailHash));
             return Optional.empty();
         }
 
@@ -67,105 +117,5 @@ public class UnsubscribeServiceImpl implements UnsubscribeService {
         log.debug("unsubscribe.header_built value={}", headerValue);
         return Optional.of(headerValue);
     }
-
-    private String decodeToken(String token) {
-        if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("token must not be blank");
-        }
-        return unsubscribeTokenCodec.decodeAndVerify(token);
-    }
-
-    private void collectMailtoEntries(Set<String> entries) {
-        String configured = emailProps.getListUnsubscribe();
-        if (configured == null || configured.isBlank()) {
-            return;
-        }
-        for (String raw : configured.split(",")) {
-            String trimmed = raw.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (isHttpLink(trimmed) && !isMailtoLink(trimmed)) {
-                log.debug("unsubscribe.drop_legacy_http entry={}", trimmed);
-                continue;
-            }
-            entries.add(trimmed);
-        }
-    }
-
-    private Optional<String> generateUnsubscribeUrl(String emailHash) {
-        String baseUrl = firstNonBlank(
-                emailProps.getUnsubscribeLink(),
-                deriveUnsubscribeBaseFromVerificationLink());
-        if (baseUrl == null) {
-            return Optional.empty();
-        }
-        try {
-            String token = unsubscribeTokenCodec.encode(emailHash);
-            return Optional.of(buildUrl(baseUrl, token));
-        } catch (Exception e) {
-            log.warn("unsubscribe.token_generation_failed hashPrefix={} msg={}",
-                    shortHash(emailHash), e.toString());
-            return Optional.empty();
-        }
-    }
-
-    private String deriveUnsubscribeBaseFromVerificationLink() {
-        String verificationLink = verificationProps.getVerificationLink();
-        if (verificationLink == null || verificationLink.isBlank()) {
-            log.info("unsubscribe.derive_base skipped reason=missing_verification_link");
-            return null;
-        }
-        try {
-            URI base = URI.create(verificationLink);
-            String path = Optional.ofNullable(base.getPath()).orElse("/");
-            String prefix = path.replaceFirst("/verify.*", "/");
-            if (!prefix.endsWith("/")) {
-                prefix = prefix + "/";
-            }
-            URI rebuilt = new URI(
-                    base.getScheme(),
-                    base.getAuthority(),
-                    prefix + "user-accounts/unsubscribe",
-                    null,
-                    null
-            );
-            return rebuilt.toString();
-        } catch (Exception e) {
-            log.warn("unsubscribe.base_derivation_failed link={} msg={}",
-                    verificationLink, e.toString());
-            return null;
-        }
-    }
-
-    private static String firstNonBlank(String primary, String fallback) {
-        if (primary != null && !primary.isBlank()) {
-            return primary;
-        }
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback;
-        }
-        return null;
-    }
-
-    private static String buildUrl(String baseUrl, String token) {
-        String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
-    }
-
-    private static boolean isHttpLink(String part) {
-        String lower = part.toLowerCase(Locale.ROOT);
-        return lower.contains("http://") || lower.contains("https://");
-    }
-
-    private static boolean isMailtoLink(String part) {
-        return part.toLowerCase(Locale.ROOT).contains("mailto:");
-    }
-
-    private static String shortHash(String hash) {
-        if (hash == null || hash.isBlank()) {
-            return "(blank)";
-        }
-        return hash.length() <= 8 ? hash : hash.substring(0, 8);
-    }
 }
+

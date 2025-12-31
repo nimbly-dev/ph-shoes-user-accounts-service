@@ -1,4 +1,4 @@
-package com.nimbly.phshoesbackend.useraccount.core.auth.exception;
+package com.nimbly.phshoesbackend.useraccount.core.exception;
 
 public class AccountLockedException extends RuntimeException {
     public AccountLockedException() {

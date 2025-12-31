@@ -1,7 +1,7 @@
 package com.nimbly.phshoesbackend.useraccount.web;
 
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.AccountLockedException;
-import com.nimbly.phshoesbackend.useraccount.core.auth.exception.InvalidCredentialsException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.AccountLockedException;
+import com.nimbly.phshoesbackend.useraccount.core.exception.InvalidCredentialsException;
 import com.nimbly.phshoesbackend.useraccount.core.config.props.LockoutProps;
 import com.nimbly.phshoesbackend.useraccount.core.exception.*;
 import com.nimbly.phshoesbackend.commons.core.api.rate.RateLimitExceededException;
@@ -173,7 +173,7 @@ public class GlobalExceptionHandler {
         return body;
     }
 
-    @ExceptionHandler(NotificationSendException.class)
+    @ExceptionHandler(UserAccountNotificationSendException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleNotificationSendError(Exception ex) {
         ErrorResponse body = new ErrorResponse("NOTIFICATION_SEND_FAILED", msg("error.notification.sendFailed"));
