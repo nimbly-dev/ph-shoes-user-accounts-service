@@ -34,12 +34,12 @@ RUN printf '%s\n' \
 COPY pom.xml .
 COPY ph-shoes-user-accounts-service-core/pom.xml ph-shoes-user-accounts-service-core/pom.xml
 COPY ph-shoes-user-accounts-service-web/pom.xml ph-shoes-user-accounts-service-web/pom.xml
-RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -P${MAVEN_ACTIVE_PROFILES} -DskipTests dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -e -U -P${MAVEN_ACTIVE_PROFILES} dependency:go-offline
 
 # Build
 COPY ph-shoes-user-accounts-service-core ./ph-shoes-user-accounts-service-core
 COPY ph-shoes-user-accounts-service-web ./ph-shoes-user-accounts-service-web
-RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -P${MAVEN_ACTIVE_PROFILES} -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 mvn -s ${MAVEN_SETTINGS_PATH} -q -P${MAVEN_ACTIVE_PROFILES} package
 RUN rm -f ${MAVEN_SETTINGS_PATH}
 
 # ---------- Runtime stage ----------

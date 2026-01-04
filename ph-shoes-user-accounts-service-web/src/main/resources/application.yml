@@ -103,6 +103,7 @@ phshoes:
       enabled: ${DYNAMO_MIGRATIONS_ENABLED:true}
   security:
     email:
+      enabled: ${PHSHOES_SECURITY_EMAIL_ENABLED:true}
       hmac-pepper-b64: ${HMAC_PEPPER_B64}
       aes-key-b64: ${AES_KEY_B64}
       legacy-peppers-b64: ${HMAC_LEGACY_PEPPERS_B64:}
