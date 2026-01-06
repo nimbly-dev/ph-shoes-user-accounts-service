@@ -38,11 +38,18 @@ jobs:
           registry-type: public
 
       - name: Build Docker image
+        env:
+          HTTP_PROXY: ""
+          HTTPS_PROXY: ""
+          NO_PROXY: "localhost,127.0.0.1,repo.maven.apache.org,repo1.maven.org"
         run: |
           docker build \
             -f Dockerfile \
             --build-arg GH_ACTOR=${{ secrets.GH_ACTOR }} \
-            --build-arg GH_PACKAGES_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }} \
+            --build-arg GH_PACKAGES_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }} \    
+            --build-arg HTTP_PROXY= \
+            --build-arg HTTPS_PROXY= \
+            --build-arg NO_PROXY=localhost,127.0.0.1,repo.maven.apache.org,repo1.maven.org \
             --no-cache \
             -t "$ECR_REPOSITORY_URI:$IMAGE_TAG" .
 
