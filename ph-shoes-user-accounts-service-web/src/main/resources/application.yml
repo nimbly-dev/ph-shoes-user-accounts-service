@@ -4,7 +4,7 @@ app:
     allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
     allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post}
     exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post}
-    allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+    allow-credentials: true
     max-age: ${CORS_MAX_AGE:3600}
   frontend:
     base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
