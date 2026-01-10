@@ -4,28 +4,25 @@ Spring Boot microservice for **account creation** with **email verification**.
 Local dev uses **LocalStack (DynamoDB)** and a local **inbox (MailHog)**.
 
 ##  Run (Dev)
-
 ```bash
 git clone <repo-url>
-cd <repo-folder>
+cd <repo-folder>/ph-shoes-services
 
 # start local infra + service
-docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml up -d --build useraccounts
 # Don't rebuild all
-docker compose -f docker-compose.dev.yml up -d 
+docker compose -f docker-compose.yml up -d useraccounts
 ```
 
 ### Live reload
-
-- The account service container now mounts the project source tree and runs with Spring Boot DevTools.
-- Edit files under `src/main` and Boot will automatically recompile + restart. No need to rebuild the image.
+- The runtime image does not support live reload; rebuild the image after code changes.
 - If you prefer seeing the logs in the foreground while coding, run:
   ```bash
-  docker compose -f docker-compose.dev.yml up account-service
+  docker compose -f docker-compose.yml up useraccounts
   ```
-  and leave that terminal open; changes will trigger fast restarts.
+  and leave that terminal open while you work.
 
-* Service: [http://localhost:8080](http://localhost:8080)
+* Service: [http://localhost:8082](http://localhost:8082)
 * MailHog (dev inbox): [http://localhost:8025](http://localhost:8025)
 * DynamoDB Admin: [http://localhost:8001](http://localhost:8001)
 * LocalStack (AWS edge): [http://localhost:4566](http://localhost:4566)
@@ -33,7 +30,7 @@ docker compose -f docker-compose.dev.yml up -d
 To stop:
 
 ```bash
-docker compose -f docker-compose.dev.yml down
+docker compose -f docker-compose.yml down
 ```
 
 ## 🔌 Endpoints
@@ -41,9 +38,9 @@ docker compose -f docker-compose.dev.yml down
 Base path: `/api/v1/user-accounts`
 
 | Method | Path                   | Purpose                                      |
-| -----: | ---------------------- | ---------------------------------------------|
+| -----: | ---------------------- | -------------------------------------------- |
 |   POST | `/`                    | Create account (preferred)                   |
-|   POST | `/register`           | Legacy alias for older clients (still open)  |
+|   POST | `/register`            | Legacy alias for older clients (still open)  |
 |    GET | `/verify?token=...`    | Verify via email link                        |
 |   POST | `/verification/resend` | Resend verification email                    |
 
@@ -60,7 +57,7 @@ Base path: `/api/v1/user-accounts`
 
 | Service           | Image                          | Ports (host) |
 | ----------------- | ------------------------------ | ------------ |
-| Account Service   | built from `DockerfileDev`     | 8080 → 8080  |
+| Account Service   | built from `Dockerfile`        | 8082 → 8082  |
 | LocalStack        | `localstack/localstack:latest` | 4566 → 4566  |
 | DynamoDB Admin    | `aaronshaf/dynamodb-admin`     | 8001 → 8001  |
 | MailHog (SMTP/UI) | `mailhog/mailhog:latest`       | 1025, 8025   |
