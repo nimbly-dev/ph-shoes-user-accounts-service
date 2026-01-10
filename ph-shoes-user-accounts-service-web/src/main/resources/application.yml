@@ -1,11 +1,11 @@
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,https://www.phshoesproject.com,https://phshoesproject.com}
-    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
-    allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post}
-    exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post}
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,https://www.phshoesproject.com,https://phshoesproject.com
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post
+    exposed-headers: Authorization,Content-Type,X-Unsubscribe-Token,List-Unsubscribe-Post
     allow-credentials: true
-    max-age: ${CORS_MAX_AGE:3600}
+    max-age: 3600
   frontend:
     base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
     verify-path: ${APP_FRONTEND_VERIFY_PATH:/}
