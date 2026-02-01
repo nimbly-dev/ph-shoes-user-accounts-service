@@ -35,16 +35,17 @@ docker compose -f docker-compose.yml down
 
 ## 🔌 Endpoints
 
-Base path: `/api/v1/user-accounts`
+Base path: `/api/v1`
 
-| Method | Path                   | Purpose                                      |
-| -----: | ---------------------- | -------------------------------------------- |
-|   POST | `/`                    | Create account (preferred)                   |
-|   POST | `/register`            | Legacy alias for older clients (still open)  |
-|    GET | `/verify?token=...`    | Verify via email link                        |
-|   POST | `/verification/resend` | Resend verification email                    |
+| Method | Path                          | Purpose                                      |
+| -----: | ----------------------------- | -------------------------------------------- |
+|   POST | `/user-accounts`              | Create account (preferred)                   |
+|   POST | `/user-accounts/register`     | Legacy alias for older clients (still open)  |
+|    GET | `/verify/email?token=...`     | Verify via email link                        |
+|   POST | `/verify/email/resend`        | Resend verification email                    |
 
 > In dev, emails are captured by **MailHog** (open the UI to see the message + link).
+> Verification links are built from `VERIFICATION_LINK` and should include `/api/v1/verify/email`.
 
 ## ⏱️ Rate limiting
 
