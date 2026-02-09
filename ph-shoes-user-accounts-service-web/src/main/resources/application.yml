@@ -35,7 +35,7 @@ notification:
   provider: ${NOTIFICATION_PROVIDER:ses}
   transport: ${NOTIFICATION_TRANSPORT:sesv2}
   email:
-    from: ${NOTIFICATION_EMAIL_FROM:PH Shoes <no-reply@local.test>}
+    from: ${NOTIFICATION_EMAIL_FROM:PH Shoes <no-reply@phshoesproject.com>}
     subjectPrefix: ${NOTIFICATION_SUBJECT_PREFIX:[PH-Shoes]}
     listUnsubscribe: "${NOTIFICATION_LIST_UNSUBSCRIBE:<mailto:unsubscribe@local.test>}"
     listUnsubscribePost: "${NOTIFICATION_LIST_UNSUBSCRIBE_POST:List-Unsubscribe=One-Click}"
@@ -51,12 +51,12 @@ notification:
   ses:
     region: ${AWS_REGION:ap-southeast-1}
     endpoint: ${AWS_ENDPOINT:}
-    configurationSet: ${SES_CONFIGURATION_SET:}
+    configurationSet: ${SES_CONFIGURATION_SET:ph-shoes-notifications}
     webhook:
       enabled: ${SES_WEBHOOK_ENABLED:true}
       verify-signature: ${SES_WEBHOOK_VERIFY_SIGNATURE:true}
       auto-confirm-subscriptions: ${SES_WEBHOOK_AUTO_CONFIRM:true}
-      allowed-topics: ${SES_WEBHOOK_ALLOWED_TOPICS:*}
+      allowed-topics: ${SES_WEBHOOK_ALLOWED_TOPICS:arn:aws:sns:ap-southeast-1:101679083819:phshoes-ses-events}
 
 verification:
   ttlSeconds: ${VERIFICATION_TTL_SECONDS:900}
