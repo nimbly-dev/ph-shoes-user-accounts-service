@@ -37,7 +37,7 @@ notification:
   email:
     from: ${NOTIFICATION_EMAIL_FROM:PH Shoes <no-reply@phshoesproject.com>}
     subjectPrefix: ${NOTIFICATION_SUBJECT_PREFIX:[PH-Shoes]}
-    listUnsubscribe: "${NOTIFICATION_LIST_UNSUBSCRIBE:<mailto:unsubscribe@local.test>}"
+    listUnsubscribe: "${NOTIFICATION_LIST_UNSUBSCRIBE:<mailto:unsubscribe@phshoesproject.com>}"
     listUnsubscribePost: "${NOTIFICATION_LIST_UNSUBSCRIBE_POST:List-Unsubscribe=One-Click}"
     unsubscribeLink: ${NOTIFICATION_UNSUBSCRIBE_LINK:http://localhost:8082/api/v1/user-accounts/unsubscribe}
   smtp:
